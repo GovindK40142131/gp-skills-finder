@@ -5,19 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HCLTech – Growth Portfolio Skills Finder</title>
 <!-- Microsoft Authentication Library (from Microsoft's own CDN) -->
-<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"
-        crossorigin="anonymous"
-        integrity="sha384-h+QJsFmGVENHLSyIxcEyJBfCUbfpjXlJQ0J8MMsqAI/8oy/+v5S8d8Z4k6O1WXP"></script>
-<script>
-// Fallback if Microsoft CDN is blocked
-window.addEventListener('error', function(e){
-  if(e.target && e.target.src && e.target.src.includes('msauth.net')){
-    var s=document.createElement('script');
-    s.src='https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js';
-    document.head.appendChild(s);
-  }
-},true);
-</script>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
 <style>
 /* ── Reset & Variables ──────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -275,8 +263,8 @@ hr.dp-div{border:none;border-top:1px solid var(--border);margin:4px 0}
 // ══════════════════════════════════════════════════════════════════
 const CFG = {
   // From Entra ID App Registration → Overview page
-  clientId:   'e193418a-bcaf-45ff-9115-ba0d58d3265c',
-  tenantId:   'common',   // 'common' allows any Microsoft work/school account to sign in
+  clientId:   'ac11af04-811f-465b-8752-0f3cf3a28a47',
+  tenantId:   'd529000d-465e-409e-b955-7aafdacf36b1',   // 'common' allows any Microsoft work/school account to sign in
 
   // The exact URL of this HTML file after you upload it to SharePoint.
   redirectUri: 'https://govindk40142131.github.io/gp-skills-finder/',
