@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HCLTech – Growth Portfolio Skills Finder</title>
 <!-- Microsoft Authentication Library (from Microsoft's own CDN) -->
-<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<!-- No external auth library needed — uses built-in browser WebCrypto + OAuth2 PKCE -->
 <style>
 /* ── Reset & Variables ──────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -263,8 +263,8 @@ hr.dp-div{border:none;border-top:1px solid var(--border);margin:4px 0}
 // ══════════════════════════════════════════════════════════════════
 const CFG = {
   // From Entra ID App Registration → Overview page
-  clientId:   'ac11af04-811f-465b-8752-0f3cf3a28a47',
-  tenantId:   'd529000d-465e-409e-b955-7aafdacf36b1',   // 'common' allows any Microsoft work/school account to sign in
+  clientId:   'e193418a-bcaf-45ff-9115-ba0d58d3265c',
+  tenantId:   'common',   // 'common' allows any Microsoft work/school account to sign in
 
   // The exact URL of this HTML file after you upload it to SharePoint.
   redirectUri: 'https://govindk40142131.github.io/gp-skills-finder/',
@@ -467,46 +467,107 @@ function sanitizeExport(v) {
 function isEmail(e) { return typeof e==='string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && !/do not send/i.test(e); }
 function isUrl(u) { try{ const r=new URL(u); return r.protocol==='https:'||r.protocol==='http:'; }catch(e){return false;} }
 
-// ── MSAL Setup ─────────────────────────────────────────────────────
-const msalCfg = {
-  auth: { clientId:CFG.clientId, authority:`https://login.microsoftonline.com/${CFG.tenantId}`, redirectUri:CFG.redirectUri, navigateToLoginRequestUrl:false },
-  cache: { cacheLocation:'localStorage', storeAuthStateInCookie:true },
-  system: { loggerOptions: { loggerCallback:()=>{}, piiLoggingEnabled:false } }
-};
-let msalInst = null;
+// ── OAuth2 PKCE Auth (no external library) ─────────────────────────
+// Runs entirely as first-party code on github.io — no CDN, no tracking prevention issues.
 
-function initMsal() {
-  try {
-    if (typeof msal === 'undefined' || !msal.PublicClientApplication) {
-      console.error('MSAL library not loaded');
-      return false;
-    }
-    msalInst = new msal.PublicClientApplication(msalCfg);
-    // MSAL v2 is ready synchronously after construction (no initialize() needed)
-    return true;
-  } catch(e) { console.error('MSAL init error:', e); return false; }
+function b64url(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
 }
 
-async function getToken() {
-  const acct = msalInst.getAllAccounts()[0];
-  if (!acct) throw new Error('Not signed in');
-  try {
-    const r = await msalInst.acquireTokenSilent({ scopes:SCOPES, account:acct });
-    return r.accessToken;
-  } catch {
-    await msalInst.acquireTokenRedirect({ scopes:SCOPES });
-  }
+async function generatePKCE() {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  return { verifier, challenge: b64url(digest) };
 }
+
+const AUTH_BASE = `https://login.microsoftonline.com/${CFG.tenantId}/oauth2/v2.0`;
+const SK_TOKEN   = 'gpsf_access_token';
+const SK_EXPIRY  = 'gpsf_token_expiry';
+const SK_ACCOUNT = 'gpsf_account';
+const SK_VERIFIER= 'gpsf_pkce_verifier';
 
 async function signIn() {
-  await msalInst.loginRedirect({ scopes:SCOPES, prompt:'select_account' });
+  const { verifier, challenge } = await generatePKCE();
+  sessionStorage.setItem(SK_VERIFIER, verifier);
+  const params = new URLSearchParams({
+    client_id:             CFG.clientId,
+    response_type:         'code',
+    redirect_uri:          CFG.redirectUri,
+    scope:                 SCOPES.join(' '),
+    code_challenge:        challenge,
+    code_challenge_method: 'S256',
+    prompt:                'select_account',
+    response_mode:         'query'
+  });
+  window.location.href = `${AUTH_BASE}/authorize?${params}`;
 }
 
 function signOut() {
-  msalInst.logoutRedirect({ account: msalInst.getAllAccounts()[0] });
+  sessionStorage.removeItem(SK_TOKEN);
+  sessionStorage.removeItem(SK_EXPIRY);
+  sessionStorage.removeItem(SK_ACCOUNT);
+  const params = new URLSearchParams({ post_logout_redirect_uri: CFG.redirectUri });
+  window.location.href = `${AUTH_BASE}/logout?${params}`;
 }
 
-function currentAccount() { return msalInst ? msalInst.getAllAccounts()[0] : null; }
+function currentAccount() {
+  try { return JSON.parse(sessionStorage.getItem(SK_ACCOUNT)); } catch { return null; }
+}
+
+async function getToken() {
+  const token  = sessionStorage.getItem(SK_TOKEN);
+  const expiry = Number(sessionStorage.getItem(SK_EXPIRY)||0);
+  if (token && Date.now() < expiry - 60000) return token; // still valid
+  // Token expired — re-authenticate
+  await signIn();
+}
+
+// Called on every page load to handle the redirect callback
+async function handleRedirectPromise() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (!code) return null;
+
+  // Clear code from URL immediately
+  window.history.replaceState({}, '', window.location.pathname);
+
+  const verifier = sessionStorage.getItem(SK_VERIFIER);
+  if (!verifier) return null;
+  sessionStorage.removeItem(SK_VERIFIER);
+
+  const body = new URLSearchParams({
+    client_id:     CFG.clientId,
+    grant_type:    'authorization_code',
+    code,
+    redirect_uri:  CFG.redirectUri,
+    code_verifier: verifier,
+    scope:         SCOPES.join(' ')
+  });
+
+  const resp = await fetch(`${AUTH_BASE}/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(()=>({}));
+    throw new Error('Token exchange failed: ' + (err.error_description || err.error || resp.status));
+  }
+
+  const tokens = await resp.json();
+  sessionStorage.setItem(SK_TOKEN, tokens.access_token);
+  sessionStorage.setItem(SK_EXPIRY, String(Date.now() + tokens.expires_in * 1000));
+
+  // Parse account info from id_token
+  try {
+    const payload = JSON.parse(atob(tokens.id_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    const acct = { username: payload.preferred_username || payload.upn || payload.email || '', name: payload.name || '' };
+    sessionStorage.setItem(SK_ACCOUNT, JSON.stringify(acct));
+    return acct;
+  } catch { return null; }
+}
 
 // ── Graph API ──────────────────────────────────────────────────────
 async function graphFetch(path, retries=2) {
@@ -905,11 +966,11 @@ function setupAuthScreen() {
       document.getElementById('btn-signin').disabled = true;
       document.getElementById('btn-signin').textContent = 'Signing in…';
       await signIn();
-      // loginRedirect navigates away — code below won't run
+      // signIn() redirects the page — code below won't run
     } catch(e) {
       document.getElementById('btn-signin').disabled = false;
       document.getElementById('btn-signin').innerHTML = '🔐 Sign in with HCLTech account';
-      if (e.errorCode !== 'user_cancelled') alert('Sign-in failed: ' + (e.errorCode || e.message));
+      alert('Sign-in failed: ' + e.message);
     }
   });
 }
@@ -1335,20 +1396,23 @@ async function init() {
     return;
   }
 
-  if (!initMsal()) {
+  // Handle OAuth2 redirect callback (code in URL) or normal page load
+  try {
+    const redirectAcct = await handleRedirectPromise();
+    if (redirectAcct) {
+      // Just came back from Microsoft login — load data
+      await loadData();
+      return;
+    }
+  } catch(e) {
     showOnly('view-error');
-    document.getElementById('err-title').textContent='Authentication Error';
-    document.getElementById('err-msg').textContent='Could not initialise Microsoft authentication. Check your Client ID and Tenant ID configuration.';
+    document.getElementById('err-title').textContent='Sign-in Error';
+    document.getElementById('err-msg').textContent = e.message || 'Authentication failed.';
     return;
   }
 
-  try {
-    await msalInst.handleRedirectPromise();
-  } catch(e) { /* ignore redirect errors */ }
-
   const acct = currentAccount();
   if (acct) {
-    msalInst.setActiveAccount(acct);
     await loadData();
   } else {
     showOnly('view-auth');
