@@ -262,23 +262,24 @@ hr.dp-div{border:none;border-top:1px solid var(--border);margin:4px 0}
 // ⚠️  CONFIGURATION — FILL THESE IN BEFORE UPLOADING TO SHAREPOINT
 // ══════════════════════════════════════════════════════════════════
 const CFG = {
-  // From Entra ID App Registration → Overview page
-  clientId:   'e193418a-bcaf-45ff-9115-ba0d58d3265c',
-  tenantId:   'common',   // 'common' allows any Microsoft work/school account to sign in
+  clientId: 'e193418a-bcaf-45ff-9115-ba0d58d3265c',
 
-  // The exact URL of this HTML file after you upload it to SharePoint.
-  redirectUri: 'https://govindk40142131.github.io/gp-skills-finder/',
+  // Recommended: actual HCLTech Directory tenant ID
+  tenantId: 'YOUR-HCLTECH-TENANT-ID',
 
-  // SharePoint / Excel settings — usually no need to change
-  spHost:       'hclo365.sharepoint.com',
-  spSitePath:   '/sites/DataAILevelUpHub',
-  drivePath:    '/Shared Documents/DataAI LevelUp Hub/Capability Management/Automation_CM',
-  workbook:     'CM_Master.xlsx',
-  worksheet:    'Master',
-  excelTable:   '',   // Excel Table name inside the sheet (leave blank if none)
+  redirectUri:
+    'https://govindk40142131.github.io/gp-skills-finder/',
 
-  // true = use built-in demo data (no SharePoint needed, for testing)
-  mockMode:     false,
+  spHost: 'hclo365.sharepoint.com',
+  spSitePath: '/sites/DataAILevelUpHub',
+  drivePath:
+    '/Shared Documents/DataAI LevelUp Hub/Capability Management/Automation_CM',
+
+  workbook: 'CM_Master.xlsx',
+  worksheet: 'Master',
+  excelTable: '',
+
+  mockMode: false
 };
 // ══════════════════════════════════════════════════════════════════
 
@@ -475,24 +476,62 @@ const msalCfg = {
 };
 let msalInst = null;
 
-function initMsal() {
+async function initMsal() {
   try {
-    const Ctor = (msal && msal.PublicClientApplication) ? msal.PublicClientApplication
-                : (typeof PublicClientApplication !== 'undefined') ? PublicClientApplication : null;
-    if (!Ctor) return false;
+    const Ctor =
+      typeof msal !== 'undefined' && msal.PublicClientApplication
+        ? msal.PublicClientApplication
+        : typeof PublicClientApplication !== 'undefined'
+          ? PublicClientApplication
+          : null;
+
+    if (!Ctor) {
+      throw new Error('MSAL Browser library did not load.');
+    }
+
     msalInst = new Ctor(msalCfg);
+
+    // Required for MSAL Browser 3.x
+    await msalInst.initialize();
+
     return true;
-  } catch(e) { console.error('MSAL init error:', e); return false; }
+  } catch (e) {
+    console.error('MSAL initialization error:', e);
+    msalInst = null;
+    return false;
+  }
 }
 
 async function getToken() {
-  const acct = msalInst.getAllAccounts()[0];
-  if (!acct) throw new Error('Not signed in');
+  if (!msalInst) {
+    throw new Error('Microsoft authentication is not initialized.');
+  }
+
+  const acct = currentAccount();
+
+  if (!acct) {
+    throw new Error('No signed-in account was found.');
+  }
+
   try {
-    const r = await msalInst.acquireTokenSilent({ scopes:SCOPES, account:acct });
-    return r.accessToken;
-  } catch {
-    await msalInst.acquireTokenRedirect({ scopes:SCOPES });
+    const result = await msalInst.acquireTokenSilent({
+      scopes: SCOPES,
+      account: acct
+    });
+
+    return result.accessToken;
+  } catch (e) {
+    console.warn(
+      'Silent token acquisition failed. Starting redirect.',
+      e
+    );
+
+    await msalInst.acquireTokenRedirect({
+      scopes: SCOPES,
+      account: acct
+    });
+
+    return null;
   }
 }
 
@@ -1333,7 +1372,7 @@ async function init() {
     return;
   }
 
-  if (!initMsal()) {
+  if (!(await initMsal())) {
     showOnly('view-error');
     document.getElementById('err-title').textContent='Authentication Error';
     document.getElementById('err-msg').textContent='Could not initialise Microsoft authentication. Check your Client ID and Tenant ID configuration.';
@@ -1344,13 +1383,14 @@ async function init() {
     await msalInst.handleRedirectPromise();
   } catch(e) { /* ignore redirect errors */ }
 
-  const acct = currentAccount();
-  if (acct) {
-    msalInst.setActiveAccount(acct);
-    await loadData();
-  } else {
-    showOnly('view-auth');
-  }
+  function currentAccount() {
+  if (!msalInst) return null;
+
+  return (
+    msalInst.getActiveAccount() ||
+    msalInst.getAllAccounts()[0] ||
+    null
+  );
 }
 
 init();
