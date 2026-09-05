@@ -470,7 +470,7 @@ function isUrl(u) { try{ const r=new URL(u); return r.protocol==='https:'||r.pro
 // ── MSAL Setup ─────────────────────────────────────────────────────
 const msalCfg = {
   auth: { clientId:CFG.clientId, authority:`https://login.microsoftonline.com/${CFG.tenantId}`, redirectUri:CFG.redirectUri, navigateToLoginRequestUrl:false },
-  cache: { cacheLocation:'sessionStorage', storeAuthStateInCookie:false },
+  cache: { cacheLocation:'sessionStorage', storeAuthStateInCookie:true },
   system: { loggerOptions: { loggerCallback:()=>{}, piiLoggingEnabled:false } }
 };
 let msalInst = null;
