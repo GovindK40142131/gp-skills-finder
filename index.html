@@ -492,19 +492,16 @@ async function getToken() {
     const r = await msalInst.acquireTokenSilent({ scopes:SCOPES, account:acct });
     return r.accessToken;
   } catch {
-    const r = await msalInst.acquireTokenPopup({ scopes:SCOPES });
-    return r.accessToken;
+    await msalInst.acquireTokenRedirect({ scopes:SCOPES });
   }
 }
 
 async function signIn() {
-  const r = await msalInst.loginPopup({ scopes:SCOPES, prompt:'select_account' });
-  if (r) msalInst.setActiveAccount(r.account);
-  return r;
+  await msalInst.loginRedirect({ scopes:SCOPES, prompt:'select_account' });
 }
 
 function signOut() {
-  msalInst.logoutPopup({ account: msalInst.getAllAccounts()[0] });
+  msalInst.logoutRedirect({ account: msalInst.getAllAccounts()[0] });
 }
 
 function currentAccount() { return msalInst ? msalInst.getAllAccounts()[0] : null; }
@@ -906,11 +903,11 @@ function setupAuthScreen() {
       document.getElementById('btn-signin').disabled = true;
       document.getElementById('btn-signin').textContent = 'Signing in…';
       await signIn();
-      await loadData();
+      // loginRedirect navigates away — code below won't run
     } catch(e) {
       document.getElementById('btn-signin').disabled = false;
       document.getElementById('btn-signin').innerHTML = '🔐 Sign in with HCLTech account';
-      if (e.errorCode !== 'user_cancelled') alert('Sign-in failed. Please try again.');
+      if (e.errorCode !== 'user_cancelled') alert('Sign-in failed: ' + (e.errorCode || e.message));
     }
   });
 }
