@@ -259,31 +259,13 @@ hr.dp-div{border:none;border-top:1px solid var(--border);margin:4px 0}
 'use strict';
 
 // ══════════════════════════════════════════════════════════════════
-// ⚠️  CONFIGURATION — FILL THESE IN BEFORE UPLOADING TO SHAREPOINT
+// CONFIGURATION
 // ══════════════════════════════════════════════════════════════════
 const CFG = {
-  // From Entra ID App Registration → Overview page
-  clientId:   'ac11af04-811f-465b-8752-0f3cf3a28a47',
-  tenantId:   'common',   // 'common' allows any Microsoft work/school account to sign in
-
-  // The exact URL of this HTML file after you upload it to SharePoint.
-  redirectUri: 'https://govindk40142131.github.io/gp-skills-finder/',
-
-  // SharePoint / Excel settings — usually no need to change
-  spHost:       'hclo365.sharepoint.com',
-  spSitePath:   '/sites/DataAILevelUpHub',
-  drivePath:    '/Shared Documents/DataAI LevelUp Hub/Capability Management/Automation_CM',
-  workbook:     'CM_Master.xlsx',
-  worksheet:    'Master',
-  excelTable:   '',   // Excel Table name inside the sheet (leave blank if none)
-
-  // true = use built-in demo data (no SharePoint needed, for testing)
-  mockMode:     false,
+  // Path to the JSON data file (same GitHub repo, updated when Excel changes)
+  dataUrl: './data.json',
 };
 // ══════════════════════════════════════════════════════════════════
-
-// ── Constants ──────────────────────────────────────────────────────
-const SCOPES = ['Files.Read','Sites.Read.All','User.Read'];
 const PAGE_SIZE = 50;
 
 const QUICK_FILTERS = [
@@ -467,157 +449,19 @@ function sanitizeExport(v) {
 function isEmail(e) { return typeof e==='string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && !/do not send/i.test(e); }
 function isUrl(u) { try{ const r=new URL(u); return r.protocol==='https:'||r.protocol==='http:'; }catch(e){return false;} }
 
-// ── OAuth2 PKCE Auth (no external library) ─────────────────────────
-// Runs entirely as first-party code on github.io — no CDN, no tracking prevention issues.
-
-function b64url(buf) {
-  return btoa(String.fromCharCode(...new Uint8Array(buf)))
-    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-}
-
-async function generatePKCE() {
-  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
-  return { verifier, challenge: b64url(digest) };
-}
-
-const AUTH_BASE = `https://login.microsoftonline.com/${CFG.tenantId}/oauth2/v2.0`;
-const SK_TOKEN   = 'gpsf_access_token';
-const SK_EXPIRY  = 'gpsf_token_expiry';
-const SK_ACCOUNT = 'gpsf_account';
-const SK_VERIFIER= 'gpsf_pkce_verifier';
-
-async function signIn() {
-  const { verifier, challenge } = await generatePKCE();
-  sessionStorage.setItem(SK_VERIFIER, verifier);
-  const params = new URLSearchParams({
-    client_id:             CFG.clientId,
-    response_type:         'code',
-    redirect_uri:          CFG.redirectUri,
-    scope:                 SCOPES.join(' '),
-    code_challenge:        challenge,
-    code_challenge_method: 'S256',
-    prompt:                'select_account',
-    response_mode:         'query'
-  });
-  window.location.href = `${AUTH_BASE}/authorize?${params}`;
-}
-
-function signOut() {
-  sessionStorage.removeItem(SK_TOKEN);
-  sessionStorage.removeItem(SK_EXPIRY);
-  sessionStorage.removeItem(SK_ACCOUNT);
-  const params = new URLSearchParams({ post_logout_redirect_uri: CFG.redirectUri });
-  window.location.href = `${AUTH_BASE}/logout?${params}`;
-}
-
-function currentAccount() {
-  try { return JSON.parse(sessionStorage.getItem(SK_ACCOUNT)); } catch { return null; }
-}
-
-async function getToken() {
-  const token  = sessionStorage.getItem(SK_TOKEN);
-  const expiry = Number(sessionStorage.getItem(SK_EXPIRY)||0);
-  if (token && Date.now() < expiry - 60000) return token; // still valid
-  // Token expired — re-authenticate
-  await signIn();
-}
-
-// Called on every page load to handle the redirect callback
-async function handleRedirectPromise() {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get('code');
-  if (!code) return null;
-
-  // Clear code from URL immediately
-  window.history.replaceState({}, '', window.location.pathname);
-
-  const verifier = sessionStorage.getItem(SK_VERIFIER);
-  if (!verifier) return null;
-  sessionStorage.removeItem(SK_VERIFIER);
-
-  const body = new URLSearchParams({
-    client_id:     CFG.clientId,
-    grant_type:    'authorization_code',
-    code,
-    redirect_uri:  CFG.redirectUri,
-    code_verifier: verifier,
-    scope:         SCOPES.join(' ')
-  });
-
-  const resp = await fetch(`${AUTH_BASE}/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body
-  });
-
-  if (!resp.ok) {
-    const err = await resp.json().catch(()=>({}));
-    throw new Error('Token exchange failed: ' + (err.error_description || err.error || resp.status));
-  }
-
-  const tokens = await resp.json();
-  sessionStorage.setItem(SK_TOKEN, tokens.access_token);
-  sessionStorage.setItem(SK_EXPIRY, String(Date.now() + tokens.expires_in * 1000));
-
-  // Parse account info from id_token
-  try {
-    const payload = JSON.parse(atob(tokens.id_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
-    const acct = { username: payload.preferred_username || payload.upn || payload.email || '', name: payload.name || '' };
-    sessionStorage.setItem(SK_ACCOUNT, JSON.stringify(acct));
-    return acct;
-  } catch { return null; }
-}
-
-// ── Graph API ──────────────────────────────────────────────────────
-async function graphFetch(path, retries=2) {
-  const token = await getToken();
-  for (let i=0; i<=retries; i++) {
-    const r = await fetch('https://graph.microsoft.com/v1.0' + path, {
-      headers: { Authorization:'Bearer '+token, Accept:'application/json' }
-    });
-    if (r.ok) return r.json();
-    if (r.status===429 && i<retries) { await sleep(1500*(i+1)); continue; }
-    if (r.status===401) throw Object.assign(new Error('Access denied. You may not have permission to this SharePoint site.'), {code:'ACCESS_DENIED'});
-    if (r.status===403) throw Object.assign(new Error('You do not have permission to access the skill data. Contact your SharePoint admin.'), {code:'FORBIDDEN'});
-    if (r.status===404) throw Object.assign(new Error('The workbook or worksheet was not found. Check your configuration.'), {code:'NOT_FOUND'});
-    throw new Error(`Data load failed (status ${r.status}). Please try again.`);
-  }
+// ── Data Loading (no auth required) ───────────────────────────────
+async function fetchSkillData() {
+  const resp = await fetch(CFG.dataUrl);
+  if (!resp.ok) throw new Error(`Could not load data.json (${resp.status}). Make sure data.json is in the same GitHub repo.`);
+  const rows = await resp.json();
+  if (!Array.isArray(rows)) throw new Error('data.json must be a JSON array of records.');
+  // Convert flat JSON objects → internal record format using existing header mapping
+  const headers = rows.length ? Object.keys(rows[0]) : [];
+  const records = rows.map((row, i) => rowToRecord(headers, headers.map(h => row[h]), i));
+  return { records, fetchedAt: new Date(), rowCount: rows.length };
 }
 
 function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
-
-async function fetchSkillData() {
-  if (CFG.mockMode) return { records: MOCK_RECORDS, fetchedAt: new Date(), rowCount: MOCK_RECORDS.length };
-
-  setLoading('Connecting to SharePoint…');
-  const site = await graphFetch(`/sites/${CFG.spHost}:${CFG.spSitePath}`);
-  const siteId = site.id;
-
-  setLoading('Locating workbook…');
-  const item = await graphFetch(`/sites/${siteId}/drive/root:${CFG.drivePath}/${CFG.workbook}`);
-  const itemId = item.id;
-
-  setLoading('Reading skill data…');
-  let headers, rows;
-
-  if (CFG.excelTable) {
-    const hdrs = await graphFetch(`/sites/${siteId}/drive/items/${itemId}/workbook/tables/${CFG.excelTable}/columns?$select=name`);
-    headers = hdrs.value.map(c=>c.name);
-    const data = await graphFetch(`/sites/${siteId}/drive/items/${itemId}/workbook/tables/${CFG.excelTable}/rows`);
-    rows = data.value.map(r=>r.values[0]);
-  } else {
-    const range = await graphFetch(`/sites/${siteId}/drive/items/${itemId}/workbook/worksheets/${CFG.worksheet}/usedRange?$select=values`);
-    const vals = range.values;
-    if (!vals || vals.length < 2) return { records:[], fetchedAt:new Date(), rowCount:0 };
-    headers = vals[0];
-    rows = vals.slice(1);
-  }
-
-  setLoading(`Parsing ${rows.length.toLocaleString()} rows…`);
-  const records = rows.map((row,i) => rowToRecord(headers, row, i));
-  return { records, fetchedAt: new Date(), rowCount: rows.length };
-}
 
 function rowToRecord(headers, row, idx) {
   const raw = {};
@@ -959,21 +803,6 @@ function createMultiSelect(id, label, options, selected, onchange) {
   return wrap;
 }
 
-// ── Render: Auth Screen ────────────────────────────────────────────
-function setupAuthScreen() {
-  document.getElementById('btn-signin').addEventListener('click', async ()=>{
-    try {
-      document.getElementById('btn-signin').disabled = true;
-      document.getElementById('btn-signin').textContent = 'Signing in…';
-      await signIn();
-      // signIn() redirects the page — code below won't run
-    } catch(e) {
-      document.getElementById('btn-signin').disabled = false;
-      document.getElementById('btn-signin').innerHTML = '🔐 Sign in with HCLTech account';
-      alert('Sign-in failed: ' + e.message);
-    }
-  });
-}
 
 // ── Render: Header ─────────────────────────────────────────────────
 function renderHeader() {
@@ -1385,7 +1214,6 @@ async function init() {
   }
 
   setupEvents();
-  setupAuthScreen();
 
   if (CFG.mockMode) {
     S.status='loaded';
@@ -1396,27 +1224,8 @@ async function init() {
     return;
   }
 
-  // Handle OAuth2 redirect callback (code in URL) or normal page load
-  try {
-    const redirectAcct = await handleRedirectPromise();
-    if (redirectAcct) {
-      // Just came back from Microsoft login — load data
-      await loadData();
-      return;
-    }
-  } catch(e) {
-    showOnly('view-error');
-    document.getElementById('err-title').textContent='Sign-in Error';
-    document.getElementById('err-msg').textContent = e.message || 'Authentication failed.';
-    return;
-  }
-
-  const acct = currentAccount();
-  if (acct) {
-    await loadData();
-  } else {
-    showOnly('view-auth');
-  }
+  // No authentication needed — load data directly
+  await loadData();
 }
 
 init();
