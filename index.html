@@ -1196,33 +1196,7 @@ function setupEvents() {
 
 // ── Init ────────────────────────────────────────────────────────────
 async function init() {
-  // Check config placeholders
-  if (CFG.clientId.includes('PASTE') || CFG.tenantId.includes('PASTE')) {
-    if (!CFG.mockMode) {
-      document.body.innerHTML=`<div style="padding:40px;font-family:Segoe UI,sans-serif;max-width:600px;margin:auto">
-        <h2 style="color:#C43131;margin-bottom:12px">⚙️ Configuration Required</h2>
-        <p style="margin-bottom:12px">Before uploading to SharePoint, open this HTML file in a text editor and fill in:</p>
-        <ul style="margin-left:20px;line-height:2">
-          <li><code>clientId</code> — your Entra ID Application (client) ID</li>
-          <li><code>tenantId</code> — your Entra ID Directory (tenant) ID</li>
-          <li><code>redirectUri</code> — the full URL of this file on SharePoint</li>
-        </ul>
-        <p style="margin-top:16px;color:#9AA5B1;font-size:12px">Or set <code>mockMode: true</code> to test with demo data right now.</p>
-      </div>`;
-      return;
-    }
-  }
-
   setupEvents();
-
-  if (CFG.mockMode) {
-    S.status='loaded';
-    S.records=MOCK_RECORDS;
-    S.fetchedAt=new Date();
-    showOnly('view-app');
-    fullRender();
-    return;
-  }
 
   // No authentication needed — load data directly
   await loadData();
