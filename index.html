@@ -5,7 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HCLTech – Growth Portfolio Skills Finder</title>
 <!-- Microsoft Authentication Library (from Microsoft's own CDN) -->
-<script src="https://unpkg.com/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"
+        crossorigin="anonymous"
+        integrity="sha384-h+QJsFmGVENHLSyIxcEyJBfCUbfpjXlJQ0J8MMsqAI/8oy/+v5S8d8Z4k6O1WXP"></script>
+<script>
+// Fallback if Microsoft CDN is blocked
+window.addEventListener('error', function(e){
+  if(e.target && e.target.src && e.target.src.includes('msauth.net')){
+    var s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js';
+    document.head.appendChild(s);
+  }
+},true);
+</script>
 <style>
 /* ── Reset & Variables ──────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -262,24 +274,23 @@ hr.dp-div{border:none;border-top:1px solid var(--border);margin:4px 0}
 // ⚠️  CONFIGURATION — FILL THESE IN BEFORE UPLOADING TO SHAREPOINT
 // ══════════════════════════════════════════════════════════════════
 const CFG = {
-  clientId: 'e193418a-bcaf-45ff-9115-ba0d58d3265c',
+  // From Entra ID App Registration → Overview page
+  clientId:   'e193418a-bcaf-45ff-9115-ba0d58d3265c',
+  tenantId:   'common',   // 'common' allows any Microsoft work/school account to sign in
 
-  // Recommended: actual HCLTech Directory tenant ID
-  tenantId: 'YOUR-HCLTECH-TENANT-ID',
+  // The exact URL of this HTML file after you upload it to SharePoint.
+  redirectUri: 'https://govindk40142131.github.io/gp-skills-finder/',
 
-  redirectUri:
-    'https://govindk40142131.github.io/gp-skills-finder/',
+  // SharePoint / Excel settings — usually no need to change
+  spHost:       'hclo365.sharepoint.com',
+  spSitePath:   '/sites/DataAILevelUpHub',
+  drivePath:    '/Shared Documents/DataAI LevelUp Hub/Capability Management/Automation_CM',
+  workbook:     'CM_Master.xlsx',
+  worksheet:    'Master',
+  excelTable:   '',   // Excel Table name inside the sheet (leave blank if none)
 
-  spHost: 'hclo365.sharepoint.com',
-  spSitePath: '/sites/DataAILevelUpHub',
-  drivePath:
-    '/Shared Documents/DataAI LevelUp Hub/Capability Management/Automation_CM',
-
-  workbook: 'CM_Master.xlsx',
-  worksheet: 'Master',
-  excelTable: '',
-
-  mockMode: false
+  // true = use built-in demo data (no SharePoint needed, for testing)
+  mockMode:     false,
 };
 // ══════════════════════════════════════════════════════════════════
 
@@ -471,67 +482,31 @@ function isUrl(u) { try{ const r=new URL(u); return r.protocol==='https:'||r.pro
 // ── MSAL Setup ─────────────────────────────────────────────────────
 const msalCfg = {
   auth: { clientId:CFG.clientId, authority:`https://login.microsoftonline.com/${CFG.tenantId}`, redirectUri:CFG.redirectUri, navigateToLoginRequestUrl:false },
-  cache: { cacheLocation:'sessionStorage', storeAuthStateInCookie:true },
+  cache: { cacheLocation:'localStorage', storeAuthStateInCookie:true },
   system: { loggerOptions: { loggerCallback:()=>{}, piiLoggingEnabled:false } }
 };
 let msalInst = null;
 
-async function initMsal() {
+function initMsal() {
   try {
-    const Ctor =
-      typeof msal !== 'undefined' && msal.PublicClientApplication
-        ? msal.PublicClientApplication
-        : typeof PublicClientApplication !== 'undefined'
-          ? PublicClientApplication
-          : null;
-
-    if (!Ctor) {
-      throw new Error('MSAL Browser library did not load.');
+    if (typeof msal === 'undefined' || !msal.PublicClientApplication) {
+      console.error('MSAL library not loaded');
+      return false;
     }
-
-    msalInst = new Ctor(msalCfg);
-
-    // Required for MSAL Browser 3.x
-    await msalInst.initialize();
-
+    msalInst = new msal.PublicClientApplication(msalCfg);
+    // MSAL v2 is ready synchronously after construction (no initialize() needed)
     return true;
-  } catch (e) {
-    console.error('MSAL initialization error:', e);
-    msalInst = null;
-    return false;
-  }
+  } catch(e) { console.error('MSAL init error:', e); return false; }
 }
 
 async function getToken() {
-  if (!msalInst) {
-    throw new Error('Microsoft authentication is not initialized.');
-  }
-
-  const acct = currentAccount();
-
-  if (!acct) {
-    throw new Error('No signed-in account was found.');
-  }
-
+  const acct = msalInst.getAllAccounts()[0];
+  if (!acct) throw new Error('Not signed in');
   try {
-    const result = await msalInst.acquireTokenSilent({
-      scopes: SCOPES,
-      account: acct
-    });
-
-    return result.accessToken;
-  } catch (e) {
-    console.warn(
-      'Silent token acquisition failed. Starting redirect.',
-      e
-    );
-
-    await msalInst.acquireTokenRedirect({
-      scopes: SCOPES,
-      account: acct
-    });
-
-    return null;
+    const r = await msalInst.acquireTokenSilent({ scopes:SCOPES, account:acct });
+    return r.accessToken;
+  } catch {
+    await msalInst.acquireTokenRedirect({ scopes:SCOPES });
   }
 }
 
@@ -1372,7 +1347,7 @@ async function init() {
     return;
   }
 
-  if (!(await initMsal())) {
+  if (!initMsal()) {
     showOnly('view-error');
     document.getElementById('err-title').textContent='Authentication Error';
     document.getElementById('err-msg').textContent='Could not initialise Microsoft authentication. Check your Client ID and Tenant ID configuration.';
@@ -1383,14 +1358,13 @@ async function init() {
     await msalInst.handleRedirectPromise();
   } catch(e) { /* ignore redirect errors */ }
 
-  function currentAccount() {
-  if (!msalInst) return null;
-
-  return (
-    msalInst.getActiveAccount() ||
-    msalInst.getAllAccounts()[0] ||
-    null
-  );
+  const acct = currentAccount();
+  if (acct) {
+    msalInst.setActiveAccount(acct);
+    await loadData();
+  } else {
+    showOnly('view-auth');
+  }
 }
 
 init();
