@@ -56,7 +56,6 @@ a:hover{text-decoration:underline}
 .user-pill:hover{background:rgba(255,255,255,.18)}
 .user-av{width:26px;height:26px;background:var(--teal);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:var(--navy)}
 .user-nm{color:rgba(255,255,255,.85);font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mock-badge{background:#ff9800;color:#fff;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700}
 
 /* ── KPI Strip ───────────────────────────────────────────────────── */
 #kpi-strip{display:flex;gap:10px;padding:10px 16px;background:var(--bg);overflow-x:auto;scrollbar-width:none}
@@ -180,20 +179,6 @@ hr.dp-div{border:none;border-top:1px solid var(--border);margin:4px 0}
 </head>
 <body>
 
-<!-- ── Auth Screen ─────────────────────────────────────────────── -->
-<div id="view-auth" class="screen hide">
-  <div class="card">
-    <div class="logo-mark">GP</div>
-    <div class="app-title">Growth Portfolio Skills Finder</div>
-    <div class="app-sub">HCLTech – Data &amp; AI Centre of Excellence</div>
-    <button class="btn btn-primary" id="btn-signin" style="width:100%;justify-content:center">
-      <svg width="16" height="16" viewBox="0 0 21 21" fill="currentColor"><path d="M10 0C4.48 0 0 4.48 0 10s4.48 10 10 10 10-4.48 10-10S15.52 0 10 0zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
-      Sign in with HCLTech account
-    </button>
-    <p style="margin-top:14px;font-size:11px;color:var(--muted)">Access is restricted to authorised SharePoint members only.</p>
-  </div>
-</div>
-
 <!-- ── Loading Screen ──────────────────────────────────────────── -->
 <div id="view-loading" class="screen hide">
   <div class="spinner"></div>
@@ -208,7 +193,6 @@ hr.dp-div{border:none;border-top:1px solid var(--border);margin:4px 0}
     <p id="err-msg" style="color:var(--text2);font-size:13px;margin:10px 0 20px"></p>
     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
       <button class="btn btn-primary" id="btn-retry">Try again</button>
-      <button class="btn btn-subtle" id="btn-signout2">Sign out</button>
     </div>
   </div>
 </div>
@@ -222,8 +206,7 @@ hr.dp-div{border:none;border-top:1px solid var(--border);margin:4px 0}
       <small id="h-updated"></small>
     </div>
     <div class="h-actions">
-      <span id="mock-badge" class="mock-badge hide">DEMO DATA</span>
-      <button class="h-btn" id="btn-export-csv">⬇ CSV</button>
+<button class="h-btn" id="btn-export-csv">⬇ CSV</button>
       <button class="h-btn" id="btn-export-xls">⬇ Excel</button>
       <button class="h-btn" id="btn-copy-emails">📋 Emails</button>
       <button class="h-btn" id="btn-refresh">↺ Refresh</button>
@@ -724,7 +707,7 @@ function copyRows(records) {
 function show(id) { document.getElementById(id).classList.remove('hide'); }
 function hide(id) { document.getElementById(id).classList.add('hide'); }
 function showOnly(id) {
-  ['view-auth','view-loading','view-error','view-app'].forEach(v=>{ if(v===id)show(v);else hide(v); });
+  ['view-loading','view-error','view-app'].forEach(v=>{ if(v===id)show(v);else hide(v); });
 }
 
 function setLoading(msg) {
@@ -806,13 +789,9 @@ function createMultiSelect(id, label, options, selected, onchange) {
 
 // ── Render: Header ─────────────────────────────────────────────────
 function renderHeader() {
-  const acct = currentAccount();
-  const nm = acct?.name || acct?.username || 'User';
-  const initials = nm.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase();
-  document.getElementById('user-av').textContent = initials;
-  document.getElementById('user-nm').textContent = nm.split(' ')[0];
+  document.getElementById('user-av').textContent = 'HCL';
+  document.getElementById('user-nm').textContent = 'HCLTech';
   document.getElementById('h-updated').textContent = S.fetchedAt ? 'Updated '+S.fetchedAt.toLocaleTimeString() : '';
-  if (CFG.mockMode) show('mock-badge'); else hide('mock-badge');
 }
 
 // ── Render: KPI Cards ──────────────────────────────────────────────
@@ -1181,9 +1160,7 @@ function setupEvents() {
   document.getElementById('btn-export-xls').addEventListener('click',()=>downloadXls(applyFilters(S.records)));
   document.getElementById('btn-copy-emails').addEventListener('click',()=>copyEmails(applyFilters(S.records)));
   document.getElementById('btn-copy-rows').addEventListener('click',()=>copyRows(applyFilters(S.records)));
-  document.getElementById('user-pill').addEventListener('click',()=>{ if(confirm('Sign out?')) signOut(); });
   document.getElementById('btn-retry').addEventListener('click',loadData);
-  document.getElementById('btn-signout2').addEventListener('click',()=>{ if(confirm('Sign out?')) signOut(); });
   document.getElementById('dp-backdrop').addEventListener('click',closeDetail);
 
   // Close multi-select panels on outside click
