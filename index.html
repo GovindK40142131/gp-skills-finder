@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HCLTech – Growth Portfolio Skills Finder</title>
+<!-- Microsoft Authentication Library (from Microsoft's own CDN) -->
+<script src="https://unpkg.com/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
+<style>
+/* ── Reset & Variables ──────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#071A33;--blue:#0066B3;--teal:#00A9E0;
+  --green:#168A45;--green-bg:#ECFAF0;
+  --warn:#C77800;--warn-bg:#FFF7E6;
+  --err:#C43131;--err-bg:#FEF0F0;
+  --info:#0066B3;--info-bg:#EEF5FF;
+  --teal-bg:#E5F7FD;
+  --bg:#F4F7FA;--surface:#fff;--border:#DCE3EA;
+  --text:#172033;--text2:#4A5568;--muted:#9AA5B1;
+  --r:10px;--shadow:0 2px 8px rgba(0,0,0,.08);--shadow-lg:0 4px 24px rgba(0,0,0,.15)
+}
+body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.5;min-height:100vh}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+input,select{font-family:inherit;font-size:inherit}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ── Utility ─────────────────────────────────────────────────────── */
+.hide{display:none!important}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;transition:opacity .15s;border:1px solid transparent}
+.btn:hover{opacity:.85}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-subtle{background:var(--bg);color:var(--text);border-color:var(--border)}
+.btn-sm{padding:4px 10px;font-size:11px}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Screens ─────────────────────────────────────────────────────── */
+.screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:20px;padding:24px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);padding:32px 40px;max-width:440px;width:100%;text-align:center}
+.logo-mark{width:60px;height:60px;background:var(--navy);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:20px;font-weight:700;color:var(--teal)}
+.app-title{font-size:20px;font-weight:700;color:var(--navy);margin-bottom:4px}
+.app-sub{font-size:13px;color:var(--muted);margin-bottom:24px}
+
+/* ── Header ──────────────────────────────────────────────────────── */
+#app-header{background:var(--navy);padding:0 16px;height:54px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:200}
+.h-logo{width:34px;height:34px;background:rgba(255,255,255,.1);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--teal);font-size:13px;flex-shrink:0}
+.h-title{flex:1;min-width:0}
+.h-title strong{color:#fff;font-size:14px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.h-title small{color:rgba(255,255,255,.5);font-size:11px}
+.h-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.h-btn{background:rgba(255,255,255,.1);color:rgba(255,255,255,.85);border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:5px;font-family:inherit;border:none;white-space:nowrap}
+.h-btn:hover{background:rgba(255,255,255,.18)}
+.user-pill{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.1);border-radius:20px;padding:3px 10px 3px 3px;cursor:pointer}
+.user-pill:hover{background:rgba(255,255,255,.18)}
+.user-av{width:26px;height:26px;background:var(--teal);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:var(--navy)}
+.user-nm{color:rgba(255,255,255,.85);font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mock-badge{background:#ff9800;color:#fff;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700}
+
+/* ── KPI Strip ───────────────────────────────────────────────────── */
+#kpi-strip{display:flex;gap:10px;padding:10px 16px;background:var(--bg);overflow-x:auto;scrollbar-width:none}
+#kpi-strip::-webkit-scrollbar{display:none}
+.kpi-card{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--surface);border-radius:var(--r);border:1px solid var(--border);cursor:pointer;flex-shrink:0;min-width:140px;transition:box-shadow .15s;user-select:none}
+.kpi-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.1)}
+.kpi-card.active{box-shadow:0 0 0 2px var(--blue)}
+.kpi-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.kpi-val{font-size:21px;font-weight:700;line-height:1.1}
+.kpi-lbl{font-size:11px;font-weight:600;color:var(--text)}
+.kpi-sub{font-size:10px;color:var(--muted)}
+
+/* ── Quick Chips ─────────────────────────────────────────────────── */
+#quick-chips{display:flex;gap:6px;padding:8px 16px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--border);background:var(--surface)}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:3px 11px;border-radius:20px;border:1px solid var(--border);font-size:11px;font-weight:500;cursor:pointer;background:var(--surface);color:var(--text2);white-space:nowrap;transition:all .12s;font-family:inherit}
+.chip:hover{border-color:var(--blue);color:var(--blue)}
+.chip.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.chip-count{background:rgba(255,255,255,.25);border-radius:8px;padding:0 5px;font-size:10px}
+.chip.active .chip-count{background:rgba(255,255,255,.3)}
+.chips-clear{color:var(--muted);font-size:11px;margin-left:4px;background:none;border:none;cursor:pointer;padding:3px 8px;border-radius:4px;font-family:inherit}
+.chips-clear:hover{color:var(--err);background:#fff3}
+
+/* ── Filter Bar ──────────────────────────────────────────────────── */
+#filter-bar{padding:8px 16px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.srch-wrap{position:relative;flex:1;min-width:180px;max-width:300px}
+.srch-wrap input{width:100%;height:30px;padding:0 28px 0 9px;border:1px solid var(--border);border-radius:7px;font-size:12px;outline:none;background:var(--bg)}
+.srch-wrap input:focus{border-color:var(--blue);background:#fff}
+.srch-x{position:absolute;right:5px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:2px}
+.srch-x:hover{color:var(--text)}
+.filter-reset{margin-left:auto;font-size:11px;color:var(--blue);background:none;border:none;cursor:pointer;padding:3px 7px;border-radius:5px;font-family:inherit}
+.filter-reset:hover{background:var(--info-bg)}
+.filter-sel{height:30px;padding:0 8px;border:1px solid var(--border);border-radius:7px;background:var(--surface);font-size:12px;color:var(--text);outline:none;cursor:pointer;font-family:inherit}
+.filter-sel:focus{border-color:var(--blue)}
+
+/* ── Multi-Select ────────────────────────────────────────────────── */
+.ms-wrap{position:relative;display:inline-block}
+.ms-trig{display:flex;align-items:center;gap:5px;height:30px;padding:0 9px;border:1px solid var(--border);border-radius:7px;background:var(--surface);cursor:pointer;font-size:12px;white-space:nowrap;min-width:100px;font-family:inherit;color:var(--text)}
+.ms-trig:hover{border-color:var(--blue)}
+.ms-trig .ct{background:var(--blue);color:#fff;border-radius:9px;padding:0 5px;font-size:10px;line-height:16px}
+.ms-panel{position:absolute;top:calc(100% + 3px);left:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-lg);min-width:210px;max-width:280px;z-index:600;display:none;flex-direction:column}
+.ms-panel.open{display:flex}
+.ms-srch{padding:7px 7px 3px}
+.ms-srch input{width:100%;height:26px;padding:0 7px;border:1px solid var(--border);border-radius:5px;font-size:12px;outline:none}
+.ms-srch input:focus{border-color:var(--blue)}
+.ms-list{max-height:190px;overflow-y:auto;padding:3px 0}
+.ms-item{display:flex;align-items:center;gap:7px;padding:4px 9px;cursor:pointer;font-size:12px}
+.ms-item:hover{background:var(--bg)}
+.ms-item input[type=checkbox]{accent-color:var(--blue);width:13px;height:13px;cursor:pointer;flex-shrink:0}
+.ms-item label{cursor:pointer;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ms-foot{display:flex;gap:7px;padding:5px 7px;border-top:1px solid var(--border)}
+.ms-foot button{font-size:11px;color:var(--blue);background:none;border:none;cursor:pointer;padding:2px 6px;border-radius:4px;font-family:inherit}
+.ms-foot button:hover{background:var(--info-bg)}
+.ms-empty{padding:9px 11px;color:var(--muted);font-size:12px}
+
+/* ── Grid Section ────────────────────────────────────────────────── */
+#grid-wrap{margin:10px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden}
+#grid-toolbar{display:flex;align-items:center;gap:7px;padding:7px 10px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.rec-count{font-size:12px;color:var(--muted);flex:1}
+.rec-count strong{color:var(--text)}
+#grid-table-wrap{overflow:auto;max-height:calc(100vh - 330px);min-height:150px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:var(--bg);padding:7px 9px;text-align:left;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10;cursor:pointer;user-select:none}
+thead th:hover{color:var(--blue)}
+thead th.sa::after{content:' ↑';color:var(--blue)}
+thead th.sd::after{content:' ↓';color:var(--blue)}
+tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+tbody tr:hover{background:#F0F6FF}
+tbody tr.sel{background:#EEF5FF}
+tbody td{padding:7px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;vertical-align:middle}
+.no-results{padding:40px 20px;text-align:center;color:var(--muted)}
+.no-results h3{font-size:15px;color:var(--text);margin-bottom:8px}
+
+/* ── Pagination ──────────────────────────────────────────────────── */
+#paging{display:flex;align-items:center;gap:6px;padding:7px 10px;border-top:1px solid var(--border);font-size:12px;color:var(--text2)}
+.pg-info{flex:1}
+.pg-btn{padding:3px 10px;border:1px solid var(--border);border-radius:5px;background:var(--surface);font-size:12px;cursor:pointer;font-family:inherit}
+.pg-btn:hover:not(:disabled){border-color:var(--blue);color:var(--blue)}
+.pg-btn:disabled{opacity:.4;cursor:default}
+.pg-btn.cur{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+/* ── Badges ──────────────────────────────────────────────────────── */
+.badge{display:inline-block;padding:2px 7px;border-radius:9px;font-size:11px;font-weight:600;line-height:17px;white-space:nowrap}
+.badge-success{background:var(--green-bg);color:var(--green)}
+.badge-info{background:var(--info-bg);color:var(--info)}
+.badge-warning{background:var(--warn-bg);color:var(--warn)}
+.badge-error{background:var(--err-bg);color:var(--err)}
+.badge-neutral{background:var(--bg);color:var(--muted)}
+
+/* ── Detail Panel ────────────────────────────────────────────────── */
+#dp-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900;display:none}
+#dp-backdrop.on{display:block}
+#detail-panel{position:fixed;top:0;right:-510px;width:510px;max-width:100vw;height:100vh;background:var(--surface);z-index:901;overflow-y:auto;transition:right .25s ease;box-shadow:-4px 0 24px rgba(0,0,0,.15);display:flex;flex-direction:column}
+#detail-panel.open{right:0}
+.dp-hdr{background:var(--navy);padding:14px 18px;flex-shrink:0}
+.dp-hdr-top{display:flex;justify-content:space-between;align-items:flex-start}
+.dp-name{font-size:16px;font-weight:700;color:#fff;margin-bottom:6px}
+.dp-close{background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:18px;line-height:1;font-family:inherit}
+.dp-close:hover{background:rgba(255,255,255,.22)}
+.dp-pills{display:flex;flex-wrap:wrap;gap:5px}
+.dp-pill{background:rgba(255,255,255,.12);color:rgba(255,255,255,.8);border-radius:4px;padding:2px 7px;font-size:11px}
+.dp-body{padding:0 18px 20px;overflow-y:auto;flex:1}
+.dp-sec{margin-top:18px}
+.dp-sec-ttl{font-size:11px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.dp-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.dp-f label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:2px}
+.dp-f .v{font-size:12px;color:var(--text);word-break:break-word}
+.dp-f a{font-size:12px}
+.dp-other{display:flex;justify-content:space-between;align-items:center;padding:7px 9px;border:1px solid var(--border);border-radius:6px;cursor:pointer;margin-bottom:5px;font-size:12px;background:none;width:100%;text-align:left;font-family:inherit}
+.dp-other:hover{background:var(--bg)}
+.dp-incomplete{display:flex;align-items:center;gap:6px;background:var(--warn-bg);border-radius:6px;padding:6px 10px;margin:10px 0;font-size:12px;color:var(--warn)}
+hr.dp-div{border:none;border-top:1px solid var(--border);margin:4px 0}
+
+/* ── Responsive ──────────────────────────────────────────────────── */
+@media(max-width:600px){
+  #app-header{padding:0 10px}
+  #filter-bar,#kpi-strip,#quick-chips,#grid-wrap{margin-left:10px;margin-right:10px;padding-left:10px;padding-right:10px}
+  #detail-panel{width:100vw}
+  .dp-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Auth Screen ─────────────────────────────────────────────── -->
+<div id="view-auth" class="screen hide">
+  <div class="card">
+    <div class="logo-mark">GP</div>
+    <div class="app-title">Growth Portfolio Skills Finder</div>
+    <div class="app-sub">HCLTech – Data &amp; AI Centre of Excellence</div>
+    <button class="btn btn-primary" id="btn-signin" style="width:100%;justify-content:center">
+      <svg width="16" height="16" viewBox="0 0 21 21" fill="currentColor"><path d="M10 0C4.48 0 0 4.48 0 10s4.48 10 10 10 10-4.48 10-10S15.52 0 10 0zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+      Sign in with HCLTech account
+    </button>
+    <p style="margin-top:14px;font-size:11px;color:var(--muted)">Access is restricted to authorised SharePoint members only.</p>
+  </div>
+</div>
+
+<!-- ── Loading Screen ──────────────────────────────────────────── -->
+<div id="view-loading" class="screen hide">
+  <div class="spinner"></div>
+  <p id="loading-msg" style="color:var(--muted);font-size:13px">Loading skill data…</p>
+</div>
+
+<!-- ── Error Screen ────────────────────────────────────────────── -->
+<div id="view-error" class="screen hide">
+  <div class="card">
+    <div style="font-size:36px;margin-bottom:12px">⚠️</div>
+    <div class="app-title" style="color:var(--err);font-size:16px" id="err-title">Something went wrong</div>
+    <p id="err-msg" style="color:var(--text2);font-size:13px;margin:10px 0 20px"></p>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      <button class="btn btn-primary" id="btn-retry">Try again</button>
+      <button class="btn btn-subtle" id="btn-signout2">Sign out</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Main App ────────────────────────────────────────────────── -->
+<div id="view-app" class="hide" style="display:flex;flex-direction:column;min-height:100vh">
+  <header id="app-header">
+    <div class="h-logo">GP</div>
+    <div class="h-title">
+      <strong>Growth Portfolio Skills Finder</strong>
+      <small id="h-updated"></small>
+    </div>
+    <div class="h-actions">
+      <span id="mock-badge" class="mock-badge hide">DEMO DATA</span>
+      <button class="h-btn" id="btn-export-csv">⬇ CSV</button>
+      <button class="h-btn" id="btn-export-xls">⬇ Excel</button>
+      <button class="h-btn" id="btn-copy-emails">📋 Emails</button>
+      <button class="h-btn" id="btn-refresh">↺ Refresh</button>
+      <div class="user-pill" id="user-pill">
+        <div class="user-av" id="user-av">?</div>
+        <span class="user-nm" id="user-nm">User</span>
+      </div>
+    </div>
+  </header>
+
+  <div id="kpi-strip"></div>
+  <div id="quick-chips"></div>
+  <div id="filter-bar"></div>
+
+  <div id="grid-wrap">
+    <div id="grid-toolbar">
+      <span class="rec-count" id="rec-count"></span>
+      <button class="btn btn-subtle btn-sm" id="btn-copy-rows">Copy rows</button>
+    </div>
+    <div id="grid-table-wrap"><table id="grid-table"><thead id="grid-head"></thead><tbody id="grid-body"></tbody></table></div>
+    <div id="paging"></div>
+  </div>
+</div>
+
+<!-- ── Detail Panel ────────────────────────────────────────────── -->
+<div id="dp-backdrop"></div>
+<div id="detail-panel">
+  <div class="dp-hdr" id="dp-hdr"></div>
+  <div class="dp-body" id="dp-body"></div>
+</div>
+
+<script>
+'use strict';
+
+// ══════════════════════════════════════════════════════════════════
+// ⚠️  CONFIGURATION — FILL THESE IN BEFORE UPLOADING TO SHAREPOINT
+// ══════════════════════════════════════════════════════════════════
+const CFG = {
+  // From Entra ID App Registration → Overview page
+  clientId:   'e193418a-bcaf-45ff-9115-ba0d58d3265c',
+  tenantId:   'common',   // 'common' allows any Microsoft work/school account to sign in
+
+  // The exact URL of this HTML file after you upload it to SharePoint.
+  redirectUri: 'https://GovindK40142131.github.io/gp-skills-finder',
+
+  // SharePoint / Excel settings — usually no need to change
+  spHost:       'hclo365.sharepoint.com',
+  spSitePath:   '/sites/DataAILevelUpHub',
+  drivePath:    '/Shared Documents/DataAI LevelUp Hub/Capability Management/Automation_CM',
+  workbook:     'CM_Master.xlsx',
+  worksheet:    'Master',
+  excelTable:   '',   // Excel Table name inside the sheet (leave blank if none)
+
+  // true = use built-in demo data (no SharePoint needed, for testing)
+  mockMode:     false,
+};
+// ══════════════════════════════════════════════════════════════════
+
+// ── Constants ──────────────────────────────────────────────────────
+const SCOPES = ['Files.Read','Sites.Read.All','User.Read'];
+const PAGE_SIZE = 50;
+
+const QUICK_FILTERS = [
+  { id:'skillAvailable',       label:'Skill Available',         icon:'⭐' },
+  { id:'proficiencyAvailable', label:'Proficiency Available',   icon:'🎖' },
+  { id:'availableInRas',       label:'Available in RAS',        icon:'✅' },
+  { id:'pendingCmApproval',    label:'Pending CM Approval',     icon:'🕐' },
+  { id:'smePending',           label:'SME Pending',             icon:'❓' },
+  { id:'noSkillAvailable',     label:'No Skill Available',      icon:'🚫' },
+  { id:'cmMapped',             label:'CM Mapped',               icon:'🗺' },
+  { id:'assessmentCompleted',  label:'Assessment Completed',    icon:'📋' },
+];
+
+const KPI_DEFS = [
+  { key:'uniqueEmployees',      label:'Unique Employees',       sub:'distinct SAP IDs',color:'#0066B3',bg:'#EEF5FF',icon:'👥' },
+  { key:'skillAvailable',       label:'Skill Available',        sub:'records',         color:'#168A45',bg:'#ECFAF0',icon:'⭐', qf:'skillAvailable' },
+  { key:'proficiencyAvailable', label:'Proficiency Available',  sub:'records',         color:'#00A9E0',bg:'#E5F7FD',icon:'🎖', qf:'proficiencyAvailable' },
+  { key:'availableInRas',       label:'Available in RAS',       sub:'records',         color:'#168A45',bg:'#ECFAF0',icon:'✅', qf:'availableInRas' },
+  { key:'pendingCmApproval',    label:'Pending CM Approval',    sub:'records',         color:'#C77800',bg:'#FFF7E6',icon:'🕐', qf:'pendingCmApproval' },
+  { key:'smePending',           label:'SME Pending',            sub:'records',         color:'#C43131',bg:'#FEF0F0',icon:'❓', qf:'smePending' },
+];
+
+const GRID_COLS = [
+  { field:'empName',          label:'Employee Name',    w:180 },
+  { field:'empSapId',         label:'SAP ID',           w:90 },
+  { field:'band',             label:'Band',             w:65 },
+  { field:'country',          label:'Country',          w:90 },
+  { field:'gpSkill',          label:'GP Skill',         w:200 },
+  { field:'proficiencyLabel', label:'Proficiency',      w:140, badge:true },
+  { field:'gpStatus',         label:'GP Status',        w:160, badge:true },
+  { field:'rasAvailability',  label:'RAS',              w:120, badge:true },
+  { field:'cmMappingStatus',  label:'CM Status',        w:110, badge:true },
+  { field:'deliveryUnit',     label:'Delivery Unit',    w:130 },
+  { field:'primarySkill',     label:'Primary Skill',    w:150 },
+];
+
+// ── Field Mapping (Excel header → JS field) ────────────────────────
+const HEADER_MAP = buildHeaderMap([
+  ['empName',                   ['emp_name','emp name','employee name','name','employeename']],
+  ['empSapId',                  ['emp_sap_id','sap id','sapid','sap_id','employee id','empid','sap no']],
+  ['empEmail',                  ['emp_email','email','email id','emailid','employee email']],
+  ['personnelAssignmentNo',     ['personnel assignment no','pa no','pa number','personnel no']],
+  ['country',                   ['country','location country']],
+  ['location',                  ['location','city','office location']],
+  ['band',                      ['band','grade band','employee band']],
+  ['subBand',                   ['sub band','sub-band','subband']],
+  ['position',                  ['position','designation','job title','role']],
+  ['deliveryUnit',              ['delivery unit','du','delivery_unit']],
+  ['division',                  ['division']],
+  ['department',                ['department','dept']],
+  ['subDivision',               ['sub division','subdivision','sub-division']],
+  ['capabilityUnit',            ['capability unit','cu','capability_unit']],
+  ['primarySkill',              ['primary skill','primary_skill','primaryskill']],
+  ['gpSkill',                   ['gp skill','growth portfolio skill','gp_skill','skill name']],
+  ['skillCode',                 ['skill code','skillcode','skill_code']],
+  ['dbsSkill',                  ['dbs skill','dbsskill','dbs_skill']],
+  ['proficiencyLevel',          ['proficiency level','proficiency','dreyfus level','dreyfus proficiency']],
+  ['proficiencyAssignedDate',   ['proficiency assigned date','proficiency date']],
+  ['gpStatus',                  ['gp status','growth portfolio status','status','gp_status']],
+  ['assessmentName',            ['assessment name','assessment']],
+  ['assessmentLink',            ['assessment link','assessment url','assessment_link']],
+  ['assessmentStatus',          ['assessment status','assessment_status']],
+  ['modeOfCompletion',          ['mode of completion','completion mode']],
+  ['certificationAvailable',    ['certification available','certification','cert available']],
+  ['smeEvaluationStatus',       ['sme evaluation status','sme status','sme_status']],
+  ['smePending',                ['sme pending','smepending','sme_pending']],
+  ['skillsConfirmationPending', ['skills confirmation pending','skills confirmation']],
+  ['wmName',                    ['wm name','work manager','wm','work manager name']],
+  ['wmEmail',                   ['wm email','work manager email']],
+  ['cmName',                    ['cm name','capability manager','cm','capability manager name']],
+  ['cmEmail',                   ['cm email','capability manager email']],
+  ['cmMappingStatus',           ['cm mapping status','cm status','cm_mapping_status']],
+  ['pendingWithCmForApproval',  ['pending with cm','pending cm','pending with cm for approval']],
+  ['projectCode',               ['project code','proj code','project_code']],
+  ['projectName',               ['project name','project','proj name']],
+  ['customerCode',              ['customer code','cust code','customer_code']],
+  ['customerName',              ['customer name','customer','cust name']],
+  ['rasAvailability',           ['ras availability','ras','ras_availability','available in ras']],
+  ['moveInOutStatus',           ['move in out status','move status','move in/out']],
+  ['dataEntryDate',             ['data entry date','entry date']],
+  ['formFeedDate',              ['form feed date','form date','feed date']],
+  ['backendUpdateRequestedDate',['backend update requested date','backend update date']],
+]);
+
+function buildHeaderMap(pairs) {
+  const m = new Map();
+  for (const [field, variants] of pairs) {
+    for (const v of variants) m.set(v.toLowerCase().replace(/\s+/g,' ').trim(), field);
+  }
+  return m;
+}
+
+function resolveHeader(h) {
+  return HEADER_MAP.get((h||'').toLowerCase().replace(/\s+/g,' ').trim());
+}
+
+// ── Status Normalization ───────────────────────────────────────────
+function normalizeGpStatus(raw) {
+  const t = (raw||'').trim();
+  if (/no\s*skill\s*available/i.test(t)) return 'no_skill_available';
+  if (/proficiency\s*available/i.test(t)) return 'proficiency_available';
+  if (/skill\s*available/i.test(t)) return 'skill_available';
+  if (/pending\s*with\s*cm/i.test(t)) return 'pending_cm_approval';
+  if (/pending\s*sme|sme\s*pending/i.test(t)) return 'pending_sme';
+  return 'unknown';
+}
+
+function normalizeRas(raw) {
+  const t = (raw||'').trim();
+  if (!t) return 'unknown';
+  if (/available\s+in\s+ras|^available$|^yes$|^y$/i.test(t)) return 'available';
+  if (/not\s+in\s+ras|not\s+available|^no$|^n$/i.test(t)) return 'not_available';
+  return 'unknown';
+}
+
+function normalizeProficiency(raw) {
+  if (raw === null || raw === undefined || raw === '') return null;
+  if (typeof raw === 'number') { if(raw===0||raw<1||raw>6) return null; return Math.round(raw); }
+  if (typeof raw === 'string') {
+    const t = raw.trim();
+    if (!t || /^n\/?a$/i.test(t)) return null;
+    const m = t.match(/^(\d)/);
+    if (m) { const n=parseInt(m[1],10); if(n>=1&&n<=6) return n; }
+  }
+  return null;
+}
+
+const PROF_LABELS = {1:'1: Entry',2:'2: Beginner',3:'3: Advanced Beginner',4:'4: Competent',5:'5: Proficient',6:'6: Expert'};
+
+function profLabel(n) { return n==null ? 'Not Assigned' : (PROF_LABELS[n]||`Level ${n}`); }
+
+function statusVariant(raw) {
+  const t = (raw||'').trim();
+  if (!t || /^n\/?a$/i.test(t)) return 'neutral';
+  if (/\b(not\s*available|failed|blocked|no\s*cm|rejected|no\s*skill)\b/i.test(t)) return 'error';
+  if (/\b(available|completed|approved|evaluated|mapped|certified|yes)\b/i.test(t)) return 'success';
+  if (/\b(skill\s*available|cm\s*mapped|informational)\b/i.test(t)) return 'info';
+  if (/\b(pending|in\s*progress|awaiting|not\s*yet)\b/i.test(t)) return 'warning';
+  return 'neutral';
+}
+
+function badge(val) {
+  const v = statusVariant(val);
+  return `<span class="badge badge-${v}">${esc(val||'—')}</span>`;
+}
+
+// ── Date Utils ─────────────────────────────────────────────────────
+const EXCEL_EPOCH = Date.UTC(1899,11,30);
+
+function excelSerialToDate(n) {
+  return new Date(EXCEL_EPOCH + n * 86400000);
+}
+
+function parseExcelDate(raw) {
+  if (!raw && raw !== 0) return null;
+  if (raw instanceof Date) return raw;
+  if (typeof raw === 'number' && raw > 1 && raw < 73050) return excelSerialToDate(raw);
+  if (typeof raw === 'string') {
+    const t = raw.trim();
+    if (!t || /^n\/?a$/i.test(t)) return null;
+    const iso = new Date(t);
+    if (!isNaN(iso)) return iso;
+    const dm = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (dm) return new Date(+dm[3]<100?2000+ +dm[3]:+dm[3],+dm[2]-1,+dm[1]);
+  }
+  return null;
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  if (!(d instanceof Date) || isNaN(d)) return '';
+  return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+}
+
+// ── Sanitize ───────────────────────────────────────────────────────
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function sanitizeExport(v) {
+  const s = String(v==null?'':v);
+  return /^[=+\-@\t\r\n]/.test(s) ? "'" + s : s;
+}
+function isEmail(e) { return typeof e==='string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && !/do not send/i.test(e); }
+function isUrl(u) { try{ const r=new URL(u); return r.protocol==='https:'||r.protocol==='http:'; }catch(e){return false;} }
+
+// ── MSAL Setup ─────────────────────────────────────────────────────
+const msalCfg = {
+  auth: { clientId:CFG.clientId, authority:`https://login.microsoftonline.com/${CFG.tenantId}`, redirectUri:CFG.redirectUri, navigateToLoginRequestUrl:false },
+  cache: { cacheLocation:'sessionStorage', storeAuthStateInCookie:false },
+  system: { loggerOptions: { loggerCallback:()=>{}, piiLoggingEnabled:false } }
+};
+let msalInst = null;
+
+function initMsal() {
+  try {
+    const Ctor = (msal && msal.PublicClientApplication) ? msal.PublicClientApplication
+                : (typeof PublicClientApplication !== 'undefined') ? PublicClientApplication : null;
+    if (!Ctor) return false;
+    msalInst = new Ctor(msalCfg);
+    return true;
+  } catch(e) { console.error('MSAL init error:', e); return false; }
+}
+
+async function getToken() {
+  const acct = msalInst.getAllAccounts()[0];
+  if (!acct) throw new Error('Not signed in');
+  try {
+    const r = await msalInst.acquireTokenSilent({ scopes:SCOPES, account:acct });
+    return r.accessToken;
+  } catch {
+    const r = await msalInst.acquireTokenPopup({ scopes:SCOPES });
+    return r.accessToken;
+  }
+}
+
+async function signIn() {
+  const r = await msalInst.loginPopup({ scopes:SCOPES, prompt:'select_account' });
+  if (r) msalInst.setActiveAccount(r.account);
+  return r;
+}
+
+function signOut() {
+  msalInst.logoutPopup({ account: msalInst.getAllAccounts()[0] });
+}
+
+function currentAccount() { return msalInst ? msalInst.getAllAccounts()[0] : null; }
+
+// ── Graph API ──────────────────────────────────────────────────────
+async function graphFetch(path, retries=2) {
+  const token = await getToken();
+  for (let i=0; i<=retries; i++) {
+    const r = await fetch('https://graph.microsoft.com/v1.0' + path, {
+      headers: { Authorization:'Bearer '+token, Accept:'application/json' }
+    });
+    if (r.ok) return r.json();
+    if (r.status===429 && i<retries) { await sleep(1500*(i+1)); continue; }
+    if (r.status===401) throw Object.assign(new Error('Access denied. You may not have permission to this SharePoint site.'), {code:'ACCESS_DENIED'});
+    if (r.status===403) throw Object.assign(new Error('You do not have permission to access the skill data. Contact your SharePoint admin.'), {code:'FORBIDDEN'});
+    if (r.status===404) throw Object.assign(new Error('The workbook or worksheet was not found. Check your configuration.'), {code:'NOT_FOUND'});
+    throw new Error(`Data load failed (status ${r.status}). Please try again.`);
+  }
+}
+
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+async function fetchSkillData() {
+  if (CFG.mockMode) return { records: MOCK_RECORDS, fetchedAt: new Date(), rowCount: MOCK_RECORDS.length };
+
+  setLoading('Connecting to SharePoint…');
+  const site = await graphFetch(`/sites/${CFG.spHost}:${CFG.spSitePath}`);
+  const siteId = site.id;
+
+  setLoading('Locating workbook…');
+  const item = await graphFetch(`/sites/${siteId}/drive/root:${CFG.drivePath}/${CFG.workbook}`);
+  const itemId = item.id;
+
+  setLoading('Reading skill data…');
+  let headers, rows;
+
+  if (CFG.excelTable) {
+    const hdrs = await graphFetch(`/sites/${siteId}/drive/items/${itemId}/workbook/tables/${CFG.excelTable}/columns?$select=name`);
+    headers = hdrs.value.map(c=>c.name);
+    const data = await graphFetch(`/sites/${siteId}/drive/items/${itemId}/workbook/tables/${CFG.excelTable}/rows`);
+    rows = data.value.map(r=>r.values[0]);
+  } else {
+    const range = await graphFetch(`/sites/${siteId}/drive/items/${itemId}/workbook/worksheets/${CFG.worksheet}/usedRange?$select=values`);
+    const vals = range.values;
+    if (!vals || vals.length < 2) return { records:[], fetchedAt:new Date(), rowCount:0 };
+    headers = vals[0];
+    rows = vals.slice(1);
+  }
+
+  setLoading(`Parsing ${rows.length.toLocaleString()} rows…`);
+  const records = rows.map((row,i) => rowToRecord(headers, row, i));
+  return { records, fetchedAt: new Date(), rowCount: rows.length };
+}
+
+function rowToRecord(headers, row, idx) {
+  const raw = {};
+  headers.forEach((h,i) => {
+    const field = resolveHeader(h);
+    if (field) raw[field] = row[i];
+  });
+
+  const profRaw = raw.proficiencyLevel;
+  const profNum = normalizeProficiency(profRaw!=null ? profRaw : (typeof row[headers.indexOf&&headers.findIndex(h=>resolveHeader(h)==='proficiencyLevel')] !== 'undefined' ? row[headers.findIndex(h=>resolveHeader(h)==='proficiencyLevel')] : null));
+
+  const gpSt = String(raw.gpStatus||'').trim();
+  const gpToken = normalizeGpStatus(gpSt);
+
+  return {
+    id: `row-${idx}`,
+    empName:                   String(raw.empName||'').trim(),
+    empSapId:                  String(raw.empSapId||'').trim(),
+    empEmail:                  String(raw.empEmail||'').trim(),
+    personnelAssignmentNo:     String(raw.personnelAssignmentNo||'').trim(),
+    country:                   String(raw.country||'').trim(),
+    location:                  String(raw.location||'').trim(),
+    band:                      String(raw.band||'').trim(),
+    subBand:                   String(raw.subBand||'').trim(),
+    position:                  String(raw.position||'').trim(),
+    deliveryUnit:              String(raw.deliveryUnit||'').trim(),
+    division:                  String(raw.division||'').trim(),
+    department:                String(raw.department||'').trim(),
+    subDivision:               String(raw.subDivision||'').trim(),
+    capabilityUnit:            String(raw.capabilityUnit||'').trim(),
+    primarySkill:              String(raw.primarySkill||'').trim(),
+    gpSkill:                   String(raw.gpSkill||'').trim(),
+    skillCode:                 String(raw.skillCode||'').trim(),
+    dbsSkill:                  String(raw.dbsSkill||'').trim(),
+    proficiencyLevel:          profNum,
+    proficiencyLabel:          profLabel(profNum),
+    proficiencyAssignedDate:   parseExcelDate(raw.proficiencyAssignedDate),
+    gpStatus:                  gpSt,
+    skillAvailable:            gpToken==='skill_available'||gpToken==='proficiency_available',
+    proficiencyAvailable:      gpToken==='proficiency_available'||profNum!=null,
+    assessmentName:            String(raw.assessmentName||'').trim(),
+    assessmentLink:            String(raw.assessmentLink||'').trim(),
+    assessmentStatus:          String(raw.assessmentStatus||'').trim(),
+    modeOfCompletion:          String(raw.modeOfCompletion||'').trim(),
+    certificationAvailable:    String(raw.certificationAvailable||'').trim(),
+    smeEvaluationStatus:       String(raw.smeEvaluationStatus||'').trim(),
+    smePending:                String(raw.smePending||'').trim(),
+    skillsConfirmationPending: String(raw.skillsConfirmationPending||'').trim(),
+    wmName:                    String(raw.wmName||'').trim(),
+    wmEmail:                   String(raw.wmEmail||'').trim(),
+    cmName:                    String(raw.cmName||'').trim(),
+    cmEmail:                   String(raw.cmEmail||'').trim(),
+    cmMappingStatus:           String(raw.cmMappingStatus||'').trim(),
+    pendingWithCmForApproval:  String(raw.pendingWithCmForApproval||'').trim(),
+    projectCode:               String(raw.projectCode||'').trim(),
+    projectName:               String(raw.projectName||'').trim(),
+    customerCode:              String(raw.customerCode||'').trim(),
+    customerName:              String(raw.customerName||'').trim(),
+    rasAvailability:           String(raw.rasAvailability||'').trim(),
+    moveInOutStatus:           String(raw.moveInOutStatus||'').trim(),
+    dataEntryDate:             parseExcelDate(raw.dataEntryDate),
+    formFeedDate:              parseExcelDate(raw.formFeedDate),
+    backendUpdateRequestedDate:parseExcelDate(raw.backendUpdateRequestedDate),
+    hasIncompleteData:         !raw.empSapId||!raw.gpSkill,
+    _raw: raw,
+  };
+}
+
+// ── Mock Data ──────────────────────────────────────────────────────
+const MOCK_RECORDS = (()=>{
+  const names=['Arjun Sharma','Priya Nair','Karthik Rajan','Divya Krishnan','Rahul Mehta',
+    'Sneha Pillai','Vikram Singh','Ananya Iyer','Suresh Babu','Deepika Rao',
+    'Arun Kumar','Meera Joshi','Rajesh Patel','Kavitha Menon','Sanjay Gupta',
+    'Lakshmi Devi','Mohan Das','Asha Rani','Venkat Reddy','Nita Shah'];
+  const skills=['GenAI / LLM Integration','Data Engineering','Cloud Architecture','MLOps',
+    'Data Science','Cybersecurity','DevSecOps','Digital Twin'];
+  const statuses=['Skill Available','Proficiency Available','Pending with CM for Approval',
+    'No Skill Available','SME Pending'];
+  const bands=['B2','B3','C1','C2','C3','D1','D2'];
+  const countries=['India','USA','UK','Australia','Singapore'];
+  const dus=['AI & Analytics DU','Cloud DU','Enterprise DU','Digital DU'];
+  const profs=[null,2,3,4,5,6];
+  const ras=['Available in RAS','Not in RAS',''];
+  const rnd=(a)=>a[Math.floor(Math.random()*a.length)];
+  return names.map((name,i)=>{
+    const sap=`100${String(10001+i).slice(-5)}`;
+    const sk=rnd(skills);
+    const st=rnd(statuses);
+    const prof=rnd(profs);
+    return {
+      id:`mock-${i}`,empName:name,empSapId:sap,empEmail:`${name.toLowerCase().replace(/ /g,'.')+'@hcltech.com'}`,
+      personnelAssignmentNo:`PA${10000+i}`,country:rnd(countries),location:'Chennai',
+      band:rnd(bands),subBand:'',position:'Senior Consultant',deliveryUnit:rnd(dus),
+      division:'AI Division',department:'Data Engineering',subDivision:'Core',
+      capabilityUnit:'AI & Analytics CU',primarySkill:'Data Engineering',
+      gpSkill:sk,skillCode:`SKL-${String(i+1).padStart(3,'0')}`,dbsSkill:'Yes',
+      proficiencyLevel:prof,proficiencyLabel:profLabel(prof),
+      proficiencyAssignedDate:new Date(2024,Math.floor(Math.random()*12),Math.floor(Math.random()*28)+1),
+      gpStatus:st,skillAvailable:/skill available/i.test(st),
+      proficiencyAvailable:/proficiency available/i.test(st)||prof!=null,
+      assessmentName:'GenAI Assessment',assessmentLink:'',assessmentStatus:i%3===0?'Completed':'Pending',
+      modeOfCompletion:'Online',certificationAvailable:i%2===0?'Yes':'No',
+      smeEvaluationStatus:i%4===0?'Evaluated':'Pending',smePending:i%4===0?'No':'Yes',
+      skillsConfirmationPending:'No',
+      wmName:'Work Manager A',wmEmail:'wm.a@hcltech.com',
+      cmName:'CM Manager B',cmEmail:'cm.b@hcltech.com',
+      cmMappingStatus:i%3===0?'CM Mapped':'Not Mapped',pendingWithCmForApproval:i%5===0?'Yes':'No',
+      projectCode:`PROJ-${1000+i}`,projectName:'AI COE Project',
+      customerCode:'CUST-001',customerName:'Global Bank Ltd',
+      rasAvailability:rnd(ras),moveInOutStatus:'',
+      dataEntryDate:new Date(2023,6,1),formFeedDate:new Date(2023,6,5),
+      backendUpdateRequestedDate:null,hasIncompleteData:false,_raw:{}
+    };
+  });
+})();
+
+// ── App State ──────────────────────────────────────────────────────
+const S = {
+  status: 'idle',
+  records: [],
+  fetchedAt: null,
+  error: null,
+  // filters
+  search: '',
+  skills: [],
+  countries: [],
+  bands: [],
+  capabilityUnits: [],
+  rasFilter: '',
+  gpStatusFilter: '',
+  quickFilters: [],
+  // grid
+  sortField: 'empName',
+  sortDir: 'asc',
+  page: 0,
+  selectedId: null,
+};
+
+let debounceTimer = null;
+
+// ── Filter Logic ───────────────────────────────────────────────────
+const QF_TESTS = {
+  skillAvailable:       r=> r.skillAvailable===true,
+  proficiencyAvailable: r=> r.proficiencyAvailable===true,
+  availableInRas:       r=> normalizeRas(r.rasAvailability)==='available',
+  pendingCmApproval:    r=> normalizeGpStatus(r.gpStatus)==='pending_cm_approval' || /yes/i.test(r.pendingWithCmForApproval),
+  smePending:           r=> /yes/i.test(r.smePending),
+  noSkillAvailable:     r=> normalizeGpStatus(r.gpStatus)==='no_skill_available',
+  cmMapped:             r=> /mapped/i.test(r.cmMappingStatus) && !/not/i.test(r.cmMappingStatus),
+  assessmentCompleted:  r=> /completed/i.test(r.assessmentStatus),
+};
+
+function applyFilters(records) {
+  let r = records;
+  if (S.search.length >= 2) {
+    const q = S.search.toLowerCase();
+    r = r.filter(rec=>
+      rec.empName.toLowerCase().includes(q)||
+      rec.empSapId.toLowerCase().includes(q)||
+      rec.empEmail.toLowerCase().includes(q)||
+      rec.gpSkill.toLowerCase().includes(q)||
+      rec.projectName.toLowerCase().includes(q)||
+      rec.customerName.toLowerCase().includes(q)||
+      rec.deliveryUnit.toLowerCase().includes(q)
+    );
+  }
+  if (S.skills.length)         r = r.filter(rec=>S.skills.includes(rec.gpSkill));
+  if (S.countries.length)      r = r.filter(rec=>S.countries.includes(rec.country));
+  if (S.bands.length)          r = r.filter(rec=>S.bands.includes(rec.band));
+  if (S.capabilityUnits.length)r = r.filter(rec=>S.capabilityUnits.includes(rec.capabilityUnit));
+  if (S.rasFilter)             r = r.filter(rec=>normalizeRas(rec.rasAvailability)===S.rasFilter);
+  if (S.gpStatusFilter)        r = r.filter(rec=>normalizeGpStatus(rec.gpStatus)===S.gpStatusFilter);
+  for (const qf of S.quickFilters) if (QF_TESTS[qf]) r = r.filter(QF_TESTS[qf]);
+  return r;
+}
+
+function computeKpis(records) {
+  const unique = new Set(records.map(r=>r.empSapId)).size;
+  return {
+    uniqueEmployees:      unique,
+    skillAvailable:       records.filter(r=>r.skillAvailable).length,
+    proficiencyAvailable: records.filter(r=>r.proficiencyAvailable).length,
+    availableInRas:       records.filter(r=>normalizeRas(r.rasAvailability)==='available').length,
+    pendingCmApproval:    records.filter(r=>normalizeGpStatus(r.gpStatus)==='pending_cm_approval').length,
+    smePending:           records.filter(r=>/yes/i.test(r.smePending)).length,
+  };
+}
+
+function distinct(records, field) {
+  return [...new Set(records.map(r=>r[field]).filter(Boolean))].sort();
+}
+
+function sortRecords(records) {
+  const f = S.sortField, d = S.sortDir==='asc'?1:-1;
+  return [...records].sort((a,b)=>{
+    const av=a[f]??'', bv=b[f]??'';
+    if (typeof av==='number'&&typeof bv==='number') return (av-bv)*d;
+    return String(av).localeCompare(String(bv))*d;
+  });
+}
+
+// ── Export ─────────────────────────────────────────────────────────
+const EXPORT_COLS = GRID_COLS.map(c=>({ field:c.field, label:c.label }))
+  .concat([
+    {field:'empEmail',label:'Email'},{field:'location',label:'Location'},
+    {field:'position',label:'Position'},{field:'division',label:'Division'},
+    {field:'department',label:'Department'},{field:'capabilityUnit',label:'Capability Unit'},
+    {field:'skillCode',label:'Skill Code'},{field:'assessmentStatus',label:'Assessment Status'},
+    {field:'certificationAvailable',label:'Certification'},{field:'smeEvaluationStatus',label:'SME Eval'},
+    {field:'wmName',label:'Work Manager'},{field:'cmName',label:'Capability Manager'},
+    {field:'projectName',label:'Project'},{field:'customerName',label:'Customer'},
+  ]);
+
+function recordsToRows(records) {
+  const headers = EXPORT_COLS.map(c=>c.label);
+  const rows = records.map(r=>EXPORT_COLS.map(c=>{
+    const v=r[c.field];
+    if (v instanceof Date) return fmtDate(v);
+    return sanitizeExport(v==null?'':v);
+  }));
+  return { headers, rows };
+}
+
+function downloadCsv(records) {
+  const {headers,rows} = recordsToRows(records);
+  const csv = [headers,...rows].map(row=>row.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  dl('﻿'+csv,'GP_Skills_Data.csv','text/csv;charset=utf-8');
+}
+
+function downloadXls(records) {
+  const {headers,rows} = recordsToRows(records);
+  const cell = v=>`<Cell><Data ss:Type="String">${String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</Data></Cell>`;
+  const row = cells=>`<Row>${cells.map(cell).join('')}</Row>`;
+  const xml=`<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="GP Skills"><Table>${row(headers)}${rows.map(row).join('')}</Table></Worksheet></Workbook>`;
+  dl(xml,'GP_Skills_Data.xls','application/vnd.ms-excel;charset=utf-8');
+}
+
+function dl(content, filename, mime) {
+  const blob = new Blob([content],{type:mime});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+
+function copyEmails(records) {
+  const emails = [...new Set(records.map(r=>r.empEmail).filter(isEmail))];
+  if (!emails.length) { alert('No valid email addresses in current results.'); return; }
+  navigator.clipboard.writeText(emails.join('; ')).then(()=>alert(`Copied ${emails.length} email address${emails.length>1?'es':''} to clipboard.`));
+}
+
+function copyRows(records) {
+  const {headers,rows} = recordsToRows(records);
+  const text = [headers,...rows].map(r=>r.join('\t')).join('\n');
+  navigator.clipboard.writeText(text).then(()=>alert(`Copied ${rows.length} rows to clipboard.`));
+}
+
+// ── Render Helpers ─────────────────────────────────────────────────
+function show(id) { document.getElementById(id).classList.remove('hide'); }
+function hide(id) { document.getElementById(id).classList.add('hide'); }
+function showOnly(id) {
+  ['view-auth','view-loading','view-error','view-app'].forEach(v=>{ if(v===id)show(v);else hide(v); });
+}
+
+function setLoading(msg) {
+  document.getElementById('loading-msg').textContent = msg||'Loading…';
+  showOnly('view-loading');
+}
+
+// ── Multi-Select Dropdown Component ────────────────────────────────
+function createMultiSelect(id, label, options, selected, onchange) {
+  const wrap = document.createElement('div');
+  wrap.className = 'ms-wrap';
+  wrap.dataset.msId = id;
+
+  function renderTrig() {
+    const cnt = selected.length;
+    return `<button class="ms-trig" type="button" data-ms-trig="${id}">
+      <span>${cnt===0?label:cnt===1?selected[0]:selected[0]+' +…'}</span>
+      ${cnt>0?`<span class="ct">${cnt}</span>`:''}
+      <span>▾</span>
+    </button>`;
+  }
+
+  function renderPanel() {
+    const filtered = options.filter(o=>!panelSearch||o.toLowerCase().includes(panelSearch.toLowerCase()));
+    return `<div class="ms-panel ${panelOpen?'open':''}" data-ms-panel="${id}">
+      <div class="ms-srch"><input type="text" placeholder="Search ${label}…" data-ms-srch="${id}" value="${esc(panelSearch)}"></div>
+      <div class="ms-list" data-ms-list="${id}">
+        ${filtered.length===0?`<div class="ms-empty">No options found</div>`:
+          filtered.map(o=>`<label class="ms-item"><input type="checkbox" data-ms-chk="${id}" data-val="${esc(o)}" ${selected.includes(o)?'checked':''}><label>${esc(o)}</label></label>`).join('')}
+      </div>
+      <div class="ms-foot">
+        <button type="button" data-ms-all="${id}">Select All</button>
+        <button type="button" data-ms-clear="${id}">Clear</button>
+      </div>
+    </div>`;
+  }
+
+  let panelOpen = false, panelSearch = '';
+
+  function render() {
+    wrap.innerHTML = renderTrig() + renderPanel();
+    // search input
+    const srch = wrap.querySelector(`[data-ms-srch="${id}"]`);
+    if (srch) srch.addEventListener('input', e=>{ panelSearch=e.target.value; render(); });
+    if (srch && panelOpen) srch.focus();
+    // checkboxes
+    wrap.querySelectorAll(`[data-ms-chk="${id}"]`).forEach(cb=>{
+      cb.addEventListener('change', ()=>{
+        const v = cb.dataset.val;
+        if (cb.checked) { if(!selected.includes(v)) selected.push(v); }
+        else { const i=selected.indexOf(v); if(i>=0) selected.splice(i,1); }
+        render();
+        onchange([...selected]);
+      });
+    });
+    // select all
+    const allBtn = wrap.querySelector(`[data-ms-all="${id}"]`);
+    if (allBtn) allBtn.addEventListener('click', ()=>{
+      const fil = options.filter(o=>!panelSearch||o.toLowerCase().includes(panelSearch.toLowerCase()));
+      fil.forEach(o=>{ if(!selected.includes(o)) selected.push(o); });
+      render(); onchange([...selected]);
+    });
+    // clear
+    const clrBtn = wrap.querySelector(`[data-ms-clear="${id}"]`);
+    if (clrBtn) clrBtn.addEventListener('click', ()=>{ selected.length=0; render(); onchange([]); });
+    // trigger
+    const trig = wrap.querySelector(`[data-ms-trig="${id}"]`);
+    if (trig) trig.addEventListener('click', e=>{ e.stopPropagation(); panelOpen=!panelOpen; render(); });
+  }
+
+  render();
+
+  // close on outside click
+  wrap._close = ()=>{ if(panelOpen){panelOpen=false;render();} };
+
+  return wrap;
+}
+
+// ── Render: Auth Screen ────────────────────────────────────────────
+function setupAuthScreen() {
+  document.getElementById('btn-signin').addEventListener('click', async ()=>{
+    try {
+      document.getElementById('btn-signin').disabled = true;
+      document.getElementById('btn-signin').textContent = 'Signing in…';
+      await signIn();
+      await loadData();
+    } catch(e) {
+      document.getElementById('btn-signin').disabled = false;
+      document.getElementById('btn-signin').innerHTML = '🔐 Sign in with HCLTech account';
+      if (e.errorCode !== 'user_cancelled') alert('Sign-in failed. Please try again.');
+    }
+  });
+}
+
+// ── Render: Header ─────────────────────────────────────────────────
+function renderHeader() {
+  const acct = currentAccount();
+  const nm = acct?.name || acct?.username || 'User';
+  const initials = nm.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('user-av').textContent = initials;
+  document.getElementById('user-nm').textContent = nm.split(' ')[0];
+  document.getElementById('h-updated').textContent = S.fetchedAt ? 'Updated '+S.fetchedAt.toLocaleTimeString() : '';
+  if (CFG.mockMode) show('mock-badge'); else hide('mock-badge');
+}
+
+// ── Render: KPI Cards ──────────────────────────────────────────────
+function renderKpis(filtered) {
+  const kpis = computeKpis(filtered);
+  document.getElementById('kpi-strip').innerHTML = KPI_DEFS.map(k=>{
+    const v = kpis[k.key];
+    const active = k.qf && S.quickFilters.includes(k.qf) ? 'active' : '';
+    return `<div class="kpi-card ${active}" data-kpi="${k.qf||''}">
+      <div class="kpi-icon" style="background:${k.bg};color:${k.color}">${k.icon}</div>
+      <div>
+        <div class="kpi-val" style="color:${k.color}">${v.toLocaleString()}</div>
+        <div class="kpi-lbl">${k.label}</div>
+        <div class="kpi-sub">${k.sub}</div>
+      </div>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('[data-kpi]').forEach(el=>{
+    const qf = el.dataset.kpi;
+    if (qf) el.addEventListener('click',()=>toggleQf(qf));
+  });
+}
+
+// ── Render: Quick Chips ────────────────────────────────────────────
+function renderChips(filtered) {
+  const kpis = computeKpis(filtered);
+  const kpiMap = { skillAvailable:'skillAvailable', proficiencyAvailable:'proficiencyAvailable', availableInRas:'availableInRas', pendingCmApproval:'pendingCmApproval', smePending:'smePending' };
+  const countFor = id => {
+    const test = QF_TESTS[id];
+    if (!test) return '';
+    const cnt = filtered.filter(test).length;
+    return cnt > 0 ? `<span class="chip-count">${cnt}</span>` : '';
+  };
+  const active = S.quickFilters;
+  let html = QUICK_FILTERS.map(q=>`<button class="chip ${active.includes(q.id)?'active':''}" data-chip="${q.id}">${q.icon} ${q.label}${countFor(q.id)}</button>`).join('');
+  if (active.length) html += `<button class="chips-clear">✕ Clear chips</button>`;
+  document.getElementById('quick-chips').innerHTML = html;
+  document.querySelectorAll('[data-chip]').forEach(el=>el.addEventListener('click',()=>toggleQf(el.dataset.chip)));
+  const clr = document.querySelector('.chips-clear');
+  if (clr) clr.addEventListener('click',()=>{ S.quickFilters=[]; S.page=0; fullRender(); });
+}
+
+// ── Render: Filter Bar ─────────────────────────────────────────────
+let msRefs = {};
+
+function renderFilters() {
+  const fb = document.getElementById('filter-bar');
+  fb.innerHTML = '';
+
+  // Search
+  const sw = document.createElement('div'); sw.className='srch-wrap';
+  sw.innerHTML=`<input type="text" id="srch-inp" placeholder="Search name, SAP ID, skill, project…" value="${esc(S.search)}">
+    ${S.search?`<button class="srch-x" id="srch-x">×</button>`:''}`;
+  fb.appendChild(sw);
+
+  const si = document.getElementById('srch-inp');
+  si.addEventListener('input', e=>{
+    clearTimeout(debounceTimer);
+    debounceTimer=setTimeout(()=>{ S.search=e.target.value; S.page=0; fullRender(); }, 300);
+  });
+  if (S.search) {
+    const sx = document.getElementById('srch-x');
+    if (sx) sx.addEventListener('click',()=>{ S.search=''; S.page=0; fullRender(); });
+  }
+
+  // Multi-selects
+  const allSkills = distinct(S.records,'gpSkill');
+  const allCountries = distinct(S.records,'country');
+  const allBands = distinct(S.records,'band');
+  const allCUs = distinct(S.records,'capabilityUnit');
+
+  function addMs(id, label, opts, sel, setter) {
+    const el = createMultiSelect(id, label, opts, sel, vals=>{ setter(vals); S.page=0; fullRender(); });
+    fb.appendChild(el);
+    msRefs[id] = el;
+  }
+
+  addMs('ms-skills',   'Skills',          allSkills,   S.skills,         v=>S.skills=v);
+  addMs('ms-countries','Countries',        allCountries, S.countries,     v=>S.countries=v);
+  addMs('ms-bands',    'Bands',            allBands,    S.bands,          v=>S.bands=v);
+  addMs('ms-cus',      'Capability Units', allCUs,      S.capabilityUnits,v=>S.capabilityUnits=v);
+
+  // GP Status
+  const gpSel = document.createElement('select'); gpSel.className='filter-sel';
+  gpSel.innerHTML=`<option value="">GP Status (all)</option>
+    <option value="skill_available">Skill Available</option>
+    <option value="proficiency_available">Proficiency Available</option>
+    <option value="no_skill_available">No Skill Available</option>
+    <option value="pending_cm_approval">Pending CM Approval</option>
+    <option value="pending_sme">SME Pending</option>`;
+  gpSel.value = S.gpStatusFilter;
+  gpSel.addEventListener('change',e=>{ S.gpStatusFilter=e.target.value; S.page=0; fullRender(); });
+  fb.appendChild(gpSel);
+
+  // RAS
+  const rasSel = document.createElement('select'); rasSel.className='filter-sel';
+  rasSel.innerHTML=`<option value="">RAS (all)</option>
+    <option value="available">Available in RAS</option>
+    <option value="not_available">Not in RAS</option>`;
+  rasSel.value = S.rasFilter;
+  rasSel.addEventListener('change',e=>{ S.rasFilter=e.target.value; S.page=0; fullRender(); });
+  fb.appendChild(rasSel);
+
+  // Reset
+  const hasFilter = S.search||S.skills.length||S.countries.length||S.bands.length||S.capabilityUnits.length||S.rasFilter||S.gpStatusFilter||S.quickFilters.length;
+  if (hasFilter) {
+    const rst = document.createElement('button'); rst.className='filter-reset'; rst.textContent='Reset all filters';
+    rst.addEventListener('click',resetFilters);
+    fb.appendChild(rst);
+  }
+}
+
+function resetFilters() {
+  Object.assign(S,{search:'',skills:[],countries:[],bands:[],capabilityUnits:[],rasFilter:'',gpStatusFilter:'',quickFilters:[],page:0});
+  fullRender();
+}
+
+function toggleQf(id) {
+  const i = S.quickFilters.indexOf(id);
+  if (i>=0) S.quickFilters.splice(i,1); else S.quickFilters.push(id);
+  S.page=0;
+  fullRender();
+}
+
+// ── Render: Grid ───────────────────────────────────────────────────
+function renderGrid(filtered) {
+  const sorted = sortRecords(filtered);
+  const total = sorted.length;
+  const pages = Math.ceil(total/PAGE_SIZE);
+  S.page = Math.min(S.page, Math.max(0,pages-1));
+  const pageRecs = sorted.slice(S.page*PAGE_SIZE, (S.page+1)*PAGE_SIZE);
+
+  // Toolbar
+  document.getElementById('rec-count').innerHTML =
+    `Showing <strong>${total.toLocaleString()}</strong> of <strong>${S.records.length.toLocaleString()}</strong> records`;
+
+  // Head
+  document.getElementById('grid-head').innerHTML =
+    '<tr>' + GRID_COLS.map(c=>{
+      const cls = S.sortField===c.field?(S.sortDir==='asc'?'sa':'sd'):'';
+      return `<th class="${cls}" data-sort="${c.field}" style="min-width:${c.w}px">${c.label}</th>`;
+    }).join('') + '</tr>';
+  document.querySelectorAll('thead th[data-sort]').forEach(th=>{
+    th.addEventListener('click',()=>{
+      if(S.sortField===th.dataset.sort) S.sortDir=S.sortDir==='asc'?'desc':'asc';
+      else { S.sortField=th.dataset.sort; S.sortDir='asc'; }
+      renderGrid(filtered);
+    });
+  });
+
+  // Body
+  if (total===0) {
+    document.getElementById('grid-body').innerHTML=`<tr><td colspan="${GRID_COLS.length}">
+      <div class="no-results"><h3>No results match your filters</h3>
+      <p style="margin-bottom:12px">Try adjusting or clearing your filters.</p>
+      <button class="btn btn-subtle" id="rst-grid">Reset all filters</button></div></td></tr>`;
+    setTimeout(()=>{ const b=document.getElementById('rst-grid'); if(b)b.addEventListener('click',resetFilters); },0);
+  } else {
+    document.getElementById('grid-body').innerHTML = pageRecs.map(r=>{
+      const sel = r.id===S.selectedId?'sel':'';
+      return `<tr class="${sel}" data-id="${r.id}">${GRID_COLS.map(c=>{
+        const v=r[c.field];
+        const display = v instanceof Date ? fmtDate(v) : (v??'');
+        if (c.badge) return `<td>${display?badge(display):''}</td>`;
+        return `<td title="${esc(String(display))}">${esc(String(display))}</td>`;
+      }).join('')}</tr>`;
+    }).join('');
+    document.querySelectorAll('#grid-body tr[data-id]').forEach(tr=>{
+      tr.addEventListener('click',()=>openDetail(tr.dataset.id, sorted));
+    });
+  }
+
+  // Pagination
+  if (pages<=1) { document.getElementById('paging').innerHTML=''; return; }
+  const from = S.page*PAGE_SIZE+1, to=Math.min((S.page+1)*PAGE_SIZE,total);
+  let pgHtml=`<span class="pg-info">Page ${S.page+1} of ${pages} (${from}–${to} of ${total})</span>
+    <button class="pg-btn" id="pg-prev" ${S.page===0?'disabled':''}>← Prev</button>`;
+  const start=Math.max(0,S.page-2), end=Math.min(pages-1,S.page+2);
+  for(let p=start;p<=end;p++) pgHtml+=`<button class="pg-btn ${p===S.page?'cur':''}" data-pg="${p}">${p+1}</button>`;
+  pgHtml+=`<button class="pg-btn" id="pg-next" ${S.page===pages-1?'disabled':''}>Next →</button>`;
+  document.getElementById('paging').innerHTML=pgHtml;
+  document.getElementById('pg-prev')?.addEventListener('click',()=>{ S.page--; renderGrid(filtered); });
+  document.getElementById('pg-next')?.addEventListener('click',()=>{ S.page++; renderGrid(filtered); });
+  document.querySelectorAll('[data-pg]').forEach(b=>b.addEventListener('click',()=>{ S.page=+b.dataset.pg; renderGrid(filtered); }));
+}
+
+// ── Render: Detail Panel ───────────────────────────────────────────
+function openDetail(id, allSorted) {
+  S.selectedId = id;
+  const rec = S.records.find(r=>r.id===id);
+  if (!rec) return;
+  const others = S.records.filter(r=>r.empSapId===rec.empSapId && r.id!==rec.id);
+
+  function field(label, val, isLink) {
+    if (isLink==='email' && isEmail(val)) return `<div class="dp-f"><label>${label}</label><div class="v"><a href="mailto:${esc(val)}">${esc(val)}</a></div></div>`;
+    if (isLink==='url' && isUrl(val)) return `<div class="dp-f"><label>${label}</label><div class="v"><a href="${esc(val)}" target="_blank" rel="noopener">Open ↗</a></div></div>`;
+    return `<div class="dp-f"><label>${label}</label><div class="v">${esc(val||'—')}</div></div>`;
+  }
+  function bfield(label, val) { return `<div class="dp-f"><label>${label}</label><div class="v">${val?badge(val):''}</div></div>`; }
+
+  document.getElementById('dp-hdr').innerHTML=`
+    <div class="dp-hdr-top">
+      <div>
+        <div class="dp-name">${esc(rec.empName||'—')}</div>
+        <div class="dp-pills">
+          <span class="dp-pill">SAP: ${esc(rec.empSapId)}</span>
+          ${rec.band?`<span class="dp-pill">${esc(rec.band)}</span>`:''}
+          ${rec.country?`<span class="dp-pill">${esc(rec.country)}${rec.location?' · '+rec.location:''}</span>`:''}
+        </div>
+      </div>
+      <button class="dp-close" id="dp-close">✕</button>
+    </div>`;
+
+  document.getElementById('dp-body').innerHTML=`
+    ${rec.hasIncompleteData?'<div class="dp-incomplete">⚠️ Incomplete data — some essential fields are missing.</div>':''}
+
+    <div class="dp-sec">
+      <div class="dp-sec-ttl">👤 Employee Details</div>
+      <div class="dp-grid">
+        ${field('Full Name',rec.empName)}
+        ${field('SAP ID',rec.empSapId)}
+        ${field('Personnel Assignment No.',rec.personnelAssignmentNo)}
+        ${field('Email',rec.empEmail,'email')}
+        ${field('Country',rec.country)}
+        ${field('Location',rec.location)}
+        ${field('Band',rec.band)}
+        ${field('Sub-Band',rec.subBand)}
+        ${field('Position',rec.position)}
+      </div>
+    </div><hr class="dp-div">
+
+    <div class="dp-sec">
+      <div class="dp-sec-ttl">🧠 Skill Portfolio</div>
+      <div class="dp-grid">
+        ${field('Primary Skill',rec.primarySkill)}
+        ${field('GP Skill',rec.gpSkill)}
+        ${field('Skill Code',rec.skillCode)}
+        ${field('DBS Skill',rec.dbsSkill)}
+        ${bfield('GP Status',rec.gpStatus)}
+        ${bfield('Proficiency Level',rec.proficiencyLabel)}
+        ${field('Proficiency Date',fmtDate(rec.proficiencyAssignedDate))}
+        ${bfield('Skill Available',rec.skillAvailable?'Available':'Not Available')}
+        ${bfield('Proficiency Available',rec.proficiencyAvailable?'Available':'Not Available')}
+      </div>
+    </div><hr class="dp-div">
+
+    <div class="dp-sec">
+      <div class="dp-sec-ttl">📋 Assessment &amp; Certification</div>
+      <div class="dp-grid">
+        ${field('Assessment Name',rec.assessmentName)}
+        ${field('Assessment Link',rec.assessmentLink,'url')}
+        ${bfield('Assessment Status',rec.assessmentStatus)}
+        ${field('Mode of Completion',rec.modeOfCompletion)}
+        ${bfield('Certification Available',rec.certificationAvailable)}
+        ${bfield('SME Evaluation Status',rec.smeEvaluationStatus)}
+        ${field('SME Pending',rec.smePending)}
+        ${field('Skills Confirmation Pending',rec.skillsConfirmationPending)}
+      </div>
+    </div><hr class="dp-div">
+
+    <div class="dp-sec">
+      <div class="dp-sec-ttl">👥 Management</div>
+      <div class="dp-grid">
+        ${field('Work Manager',rec.wmName)}
+        ${field('WM Email',rec.wmEmail,'email')}
+        ${field('Capability Manager',rec.cmName)}
+        ${field('CM Email',rec.cmEmail,'email')}
+        ${bfield('CM Mapping Status',rec.cmMappingStatus)}
+        ${bfield('Pending CM Approval',rec.pendingWithCmForApproval)}
+      </div>
+    </div><hr class="dp-div">
+
+    <div class="dp-sec">
+      <div class="dp-sec-ttl">💼 Assignment</div>
+      <div class="dp-grid">
+        ${field('Project Code',rec.projectCode)}
+        ${field('Project Name',rec.projectName)}
+        ${field('Customer',rec.customerName)}
+        ${bfield('RAS Availability',rec.rasAvailability)}
+        ${field('Move In/Out',rec.moveInOutStatus)}
+        ${field('Delivery Unit',rec.deliveryUnit)}
+        ${field('Division',rec.division)}
+        ${field('Department',rec.department)}
+        ${field('Capability Unit',rec.capabilityUnit)}
+      </div>
+    </div>
+
+    ${others.length?`<hr class="dp-div"><div class="dp-sec">
+      <div class="dp-sec-ttl">🧠 Other Skills for This Employee (${others.length})</div>
+      ${others.map(o=>`<button class="dp-other" data-otherid="${o.id}">
+        <span><strong>${esc(o.gpSkill||o.primarySkill||'—')}</strong>
+          ${o.skillCode?`<span style="color:var(--muted);font-size:11px;margin-left:8px">${esc(o.skillCode)}</span>`:''}
+        </span>
+        ${badge(o.gpStatus)}
+      </button>`).join('')}
+    </div>`:''}
+
+    <hr class="dp-div"><div class="dp-sec" style="padding-bottom:24px">
+      <div class="dp-sec-ttl" style="font-size:10px;color:var(--muted)">Record Dates</div>
+      <div class="dp-grid">
+        ${field('Data Entry Date',fmtDate(rec.dataEntryDate))}
+        ${field('Form Feed Date',fmtDate(rec.formFeedDate))}
+        ${field('Backend Update Requested',fmtDate(rec.backendUpdateRequestedDate))}
+      </div>
+    </div>`;
+
+  document.getElementById('dp-close').addEventListener('click',closeDetail);
+  document.querySelectorAll('[data-otherid]').forEach(b=>{
+    b.addEventListener('click',()=>{ openDetail(b.dataset.otherid,allSorted); document.getElementById('detail-panel').scrollTop=0; });
+  });
+
+  document.getElementById('detail-panel').classList.add('open');
+  document.getElementById('dp-backdrop').classList.add('on');
+  document.getElementById('detail-panel').scrollTop=0;
+
+  // Highlight selected row
+  document.querySelectorAll('#grid-body tr').forEach(tr=>tr.classList.toggle('sel',tr.dataset.id===id));
+}
+
+function closeDetail() {
+  S.selectedId=null;
+  document.getElementById('detail-panel').classList.remove('open');
+  document.getElementById('dp-backdrop').classList.remove('on');
+  document.querySelectorAll('#grid-body tr').forEach(tr=>tr.classList.remove('sel'));
+}
+
+// ── Full Render ────────────────────────────────────────────────────
+function fullRender() {
+  const filtered = applyFilters(S.records);
+  renderHeader();
+  renderKpis(filtered);
+  renderChips(filtered);
+  renderFilters();
+  renderGrid(filtered);
+
+  // Close open multi-select panels on outside click
+  document.querySelectorAll('.ms-wrap').forEach(w=>w._close&&(w._close()));
+}
+
+// ── Load Data ──────────────────────────────────────────────────────
+async function loadData() {
+  try {
+    S.status='loading';
+    setLoading('Loading skill data…');
+    const result = await fetchSkillData();
+    S.records = result.records;
+    S.fetchedAt = result.fetchedAt;
+    S.status='loaded';
+    S.page=0;
+    showOnly('view-app');
+    fullRender();
+  } catch(e) {
+    S.status='error';
+    S.error=e;
+    showOnly('view-error');
+    document.getElementById('err-title').textContent = e.code==='ACCESS_DENIED'?'Access Denied':'Could Not Load Data';
+    document.getElementById('err-msg').textContent = e.message||'An unexpected error occurred. Please try again.';
+  }
+}
+
+// ── Setup Events ───────────────────────────────────────────────────
+function setupEvents() {
+  // Header buttons
+  document.getElementById('btn-refresh').addEventListener('click',loadData);
+  document.getElementById('btn-export-csv').addEventListener('click',()=>downloadCsv(applyFilters(S.records)));
+  document.getElementById('btn-export-xls').addEventListener('click',()=>downloadXls(applyFilters(S.records)));
+  document.getElementById('btn-copy-emails').addEventListener('click',()=>copyEmails(applyFilters(S.records)));
+  document.getElementById('btn-copy-rows').addEventListener('click',()=>copyRows(applyFilters(S.records)));
+  document.getElementById('user-pill').addEventListener('click',()=>{ if(confirm('Sign out?')) signOut(); });
+  document.getElementById('btn-retry').addEventListener('click',loadData);
+  document.getElementById('btn-signout2').addEventListener('click',()=>{ if(confirm('Sign out?')) signOut(); });
+  document.getElementById('dp-backdrop').addEventListener('click',closeDetail);
+
+  // Close multi-select panels on outside click
+  document.addEventListener('click',e=>{
+    if (!e.target.closest('.ms-wrap')) {
+      document.querySelectorAll('.ms-panel.open').forEach(p=>p.classList.remove('open'));
+    }
+  });
+}
+
+// ── Init ────────────────────────────────────────────────────────────
+async function init() {
+  // Check config placeholders
+  if (CFG.clientId.includes('PASTE') || CFG.tenantId.includes('PASTE')) {
+    if (!CFG.mockMode) {
+      document.body.innerHTML=`<div style="padding:40px;font-family:Segoe UI,sans-serif;max-width:600px;margin:auto">
+        <h2 style="color:#C43131;margin-bottom:12px">⚙️ Configuration Required</h2>
+        <p style="margin-bottom:12px">Before uploading to SharePoint, open this HTML file in a text editor and fill in:</p>
+        <ul style="margin-left:20px;line-height:2">
+          <li><code>clientId</code> — your Entra ID Application (client) ID</li>
+          <li><code>tenantId</code> — your Entra ID Directory (tenant) ID</li>
+          <li><code>redirectUri</code> — the full URL of this file on SharePoint</li>
+        </ul>
+        <p style="margin-top:16px;color:#9AA5B1;font-size:12px">Or set <code>mockMode: true</code> to test with demo data right now.</p>
+      </div>`;
+      return;
+    }
+  }
+
+  setupEvents();
+  setupAuthScreen();
+
+  if (CFG.mockMode) {
+    S.status='loaded';
+    S.records=MOCK_RECORDS;
+    S.fetchedAt=new Date();
+    showOnly('view-app');
+    fullRender();
+    return;
+  }
+
+  if (!initMsal()) {
+    showOnly('view-error');
+    document.getElementById('err-title').textContent='Authentication Error';
+    document.getElementById('err-msg').textContent='Could not initialise Microsoft authentication. Check your Client ID and Tenant ID configuration.';
+    return;
+  }
+
+  try {
+    await msalInst.handleRedirectPromise();
+  } catch(e) { /* ignore redirect errors */ }
+
+  const acct = currentAccount();
+  if (acct) {
+    msalInst.setActiveAccount(acct);
+    await loadData();
+  } else {
+    showOnly('view-auth');
+  }
+}
+
+init();
+</script>
+</body>
+</html>
